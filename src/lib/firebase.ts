@@ -11,8 +11,23 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+// Check if the API key is present BEFORE initializing
+if (!firebaseConfig.apiKey) {
+  console.error(
+    "Firebase API Key is missing from environment variables. " +
+    "Please ensure your .env.local file is correctly set up with NEXT_PUBLIC_FIREBASE_API_KEY " +
+    "and that you have restarted your Next.js development server."
+  );
+}
+
 // Initialize Firebase
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+let app;
+if (getApps().length === 0) {
+  app = initializeApp(firebaseConfig);
+} else {
+  app = getApp();
+}
+
 const auth = getAuth(app);
 
 export { app, auth };
