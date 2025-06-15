@@ -38,7 +38,7 @@ export default function LoginPage() {
       } else if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
         description = 'Invalid email or password. Please try again.';
       } else if (error.code === 'auth/api-key-not-valid') {
-        description = 'Invalid Firebase API Key. Check your .env.local file and Firebase project settings.';
+        description = 'Invalid Firebase API Key. Check your Firebase configuration.';
       } else {
         description = error.message || 'An unexpected error occurred. Check console or Firebase settings.';
       }
@@ -67,11 +67,11 @@ export default function LoginPage() {
       } else if (error.code === 'auth/account-exists-with-different-credential') {
         description = 'An account already exists with this email address using a different sign-in method.';
       } else if (error.code === 'auth/api-key-not-valid') {
-        description = 'Invalid Firebase API Key. Check your .env.local file and Firebase project settings.';
+        description = 'Invalid Firebase API Key. Check your Firebase configuration.';
       } else if (error.code === 'auth/configuration-not-found' || error.code === 'auth/operation-not-allowed') {
          description = 'Google Sign-In is not enabled for this project. Enable it in your Firebase console (Authentication > Sign-in method > Google).';
       } else if (error.code === 'auth/unauthorized-domain') {
-        description = 'This domain is not authorized for Google Sign-In. Please add your app\'s preview domain (likely homeplate-488d9.firebaseapp.com) to the "Authorized domains" list in your Firebase project console (Authentication > Settings).';
+        description = "This app's domain is not authorized for Google Sign-In. IMPORTANT: Note the EXACT URL in your browser's address bar RIGHT NOW. Then, add this exact URL to the 'Authorized domains' list in your Firebase project console (Authentication > Settings).";
       } else {
         description = error.message || 'An unexpected error occurred. Check console or Firebase settings.';
       }

@@ -41,7 +41,7 @@ export default function SignupPage() {
       if (error.code === 'auth/configuration-not-found') {
         description = 'Firebase auth configuration error. Ensure Email/Password sign-in is enabled in your Firebase project console (Authentication > Sign-in method).';
       } else if (error.code === 'auth/api-key-not-valid') {
-        description = 'Invalid Firebase API Key. Check your .env.local file and Firebase project settings.';
+        description = 'Invalid Firebase API Key. Check your Firebase configuration.';
       } else if (error.code === 'auth/email-already-in-use') {
         description = 'This email is already in use. Try logging in or using a different email.';
       } else {
@@ -72,11 +72,11 @@ export default function SignupPage() {
       } else if (error.code === 'auth/account-exists-with-different-credential') {
         description = 'An account already exists with this email. Try logging in or using a different sign-in method.';
       } else if (error.code === 'auth/api-key-not-valid') {
-        description = 'Invalid Firebase API Key. Check your .env.local file and Firebase project settings.';
+        description = 'Invalid Firebase API Key. Check your Firebase configuration.';
       } else if (error.code === 'auth/configuration-not-found' || error.code === 'auth/operation-not-allowed') {
          description = 'Google Sign-In is not enabled for this project. Enable it in your Firebase console (Authentication > Sign-in method > Google).';
       } else if (error.code === 'auth/unauthorized-domain') {
-        description = 'This domain is not authorized for Google Sign-In. Please add your app\'s preview domain (likely homeplate-488d9.firebaseapp.com) to the "Authorized domains" list in your Firebase project console (Authentication > Settings).';
+        description = "This app's domain is not authorized for Google Sign-In. IMPORTANT: Note the EXACT URL in your browser's address bar RIGHT NOW. Then, add this exact URL to the 'Authorized domains' list in your Firebase project console (Authentication > Settings).";
       } else {
         description = error.message || 'An unexpected error occurred. Check console or Firebase settings.';
       }
