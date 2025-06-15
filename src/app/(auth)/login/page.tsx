@@ -30,9 +30,17 @@ export default function LoginPage() {
       router.push('/'); // Redirect to home page or dashboard
     } catch (error: any) {
       console.error("Login error:", error);
+      let description = error.message || 'Please check your credentials and try again.';
+      if (error.code === 'auth/configuration-not-found') {
+        description = 'Firebase auth configuration not found. Please ensure Email/Password sign-in is enabled in your Firebase project console (Authentication > Sign-in method).';
+      } else if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        description = 'Invalid email or password. Please try again.';
+      } else if (error.code === 'auth/api-key-not-valid') {
+        description = 'Invalid Firebase API Key. Please check your .env.local file and Firebase project settings.';
+      }
       toast({
         title: 'Login Failed',
-        description: error.message || 'Please check your credentials and try again.',
+        description: description,
         variant: 'destructive',
       });
     } finally {

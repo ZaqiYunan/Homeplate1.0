@@ -35,9 +35,15 @@ export default function SignupPage() {
       router.push('/'); // Redirect to home page or dashboard
     } catch (error: any) {
       console.error("Signup error:", error);
+      let description = error.message || 'Please try again.';
+      if (error.code === 'auth/configuration-not-found') {
+        description = 'Firebase auth configuration not found. Please ensure Email/Password sign-in is enabled in your Firebase project console (Authentication > Sign-in method).';
+      } else if (error.code === 'auth/api-key-not-valid') {
+        description = 'Invalid Firebase API Key. Please check your .env.local file and Firebase project settings.';
+      }
       toast({
         title: 'Signup Failed',
-        description: error.message || 'Please try again.',
+        description: description,
         variant: 'destructive',
       });
     } finally {
