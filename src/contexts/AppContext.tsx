@@ -24,8 +24,8 @@ interface AppContextType {
   clearRecommendedRecipes: () => void;
   recipeRatings: Record<string, number>;
   rateRecipe: (recipeName: string, rating: number) => void;
-  isContextLoading: boolean; // Renamed from isLoadingRecipes
-  setIsContextLoading: (loading: boolean) => void; // Renamed from setIsLoadingRecipes
+  isContextLoading: boolean;
+  setIsContextLoading: (loading: boolean) => void;
   isMounted: boolean;
 }
 
@@ -34,6 +34,12 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 const LOCAL_STORAGE_KEYS = {
   RECIPE_RATINGS: 'homeplate_recipeRatings',
 };
+
+// Helper to get the path to the user's ingredients data document
+const getUserIngredientsDataRef = (userId: string) => {
+  return doc(db, 'users', userId, 'ingredients', 'data');
+};
+
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
@@ -60,16 +66,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (isMounted && user) {
       const fetchUserIngredients = async () => {
         setIsContextLoading(true);
-        const userIngredientsRef = doc(db, 'userIngredients', user.uid);
+        const ingredientsDataRef = getUserIngredientsDataRef(user.uid);
         try {
-          const docSnap = await getDoc(userIngredientsRef);
+          const docSnap = await getDoc(ingredientsDataRef);
           if (docSnap.exists()) {
             const data = docSnap.data();
             setStoredIngredients(data.pantryIngredients || []);
             setPreferredIngredients(data.favoriteIngredients || []);
           } else {
+            // If the 'data' document doesn't exist, initialize with empty arrays
+            // This also implicitly creates the 'users/{userId}/ingredients' path if needed by Firestore rules
             setStoredIngredients([]);
             setPreferredIngredients([]);
+            await setDoc(ingredientsDataRef, { pantryIngredients: [], favoriteIngredients: [] });
           }
         } catch (error) {
           console.error("Error fetching user ingredients:", error);
@@ -80,10 +89,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       };
       fetchUserIngredients();
     } else if (isMounted && !user) {
-      // User logged out, clear ingredients state
       setStoredIngredients([]);
       setPreferredIngredients([]);
-      // Recipe ratings are kept in localStorage, so they persist across sessions unless manually cleared.
     }
   }, [isMounted, user, toast]);
   
@@ -103,8 +110,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const newPantryIngredients = [...storedIngredients, ingredient.trim()];
       setIsContextLoading(true);
       try {
-        const userIngredientsRef = doc(db, 'userIngredients', user.uid);
-        await setDoc(userIngredientsRef, { pantryIngredients: newPantryIngredients }, { merge: true });
+        const ingredientsDataRef = getUserIngredientsDataRef(user.uid);
+        await setDoc(ingredientsDataRef, { pantryIngredients: newPantryIngredients }, { merge: true });
         setStoredIngredients(newPantryIngredients);
         toast({ title: "Pantry Updated", description: `${ingredient} added to your pantry.` });
       } catch (error) {
@@ -116,7 +123,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } else if (storedIngredients.map(i => i.toLowerCase()).includes(lowerCaseIngredient)) {
         toast({ title: "Duplicate Ingredient", description: `${ingredient} is already in your pantry.`});
     }
-  }, [user, storedIngredients, toast, setIsContextLoading]);
+  }, [user, storedIngredients, toast]);
 
   const removeStoredIngredient = useCallback(async (ingredient: string) => {
     if (!user) {
@@ -126,8 +133,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const newPantryIngredients = storedIngredients.filter(i => i.toLowerCase() !== ingredient.toLowerCase());
     setIsContextLoading(true);
     try {
-      const userIngredientsRef = doc(db, 'userIngredients', user.uid);
-      await setDoc(userIngredientsRef, { pantryIngredients: newPantryIngredients }, { merge: true });
+      const ingredientsDataRef = getUserIngredientsDataRef(user.uid);
+      await setDoc(ingredientsDataRef, { pantryIngredients: newPantryIngredients }, { merge: true });
       setStoredIngredients(newPantryIngredients);
       toast({ title: "Pantry Updated", description: `${ingredient} removed from your pantry.` });
     } catch (error) {
@@ -136,7 +143,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } finally {
       setIsContextLoading(false);
     }
-  }, [user, storedIngredients, toast, setIsContextLoading]);
+  }, [user, storedIngredients, toast]);
 
   const togglePreferredIngredient = useCallback(async (ingredient: string) => {
     if (!user) {
@@ -155,15 +162,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     
     setIsContextLoading(true);
     try {
-      const userIngredientsRef = doc(db, 'userIngredients', user.uid);
-      await setDoc(userIngredientsRef, { favoriteIngredients: newFavoriteIngredients }, { merge: true });
+      const ingredientsDataRef = getUserIngredientsDataRef(user.uid);
+      await setDoc(ingredientsDataRef, { favoriteIngredients: newFavoriteIngredients }, { merge: true });
       setPreferredIngredients(newFavoriteIngredients);
       
-      // Call AI to update preferences
       if (newFavoriteIngredients.length > 0) {
         await preSelectIngredients({ ingredients: newFavoriteIngredients });
       }
-      // The AI flow itself doesn't return a message for toast, so we provide one here.
       toast({ title: "Favorite Ingredients Updated", description: `AI preferences updated based on your favorites.` });
 
     } catch (error) {
@@ -172,7 +177,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } finally {
       setIsContextLoading(false);
     }
-  }, [user, preferredIngredients, toast, setIsContextLoading]);
+  }, [user, preferredIngredients, toast]);
 
   const clearPreferredIngredients = useCallback(async () => {
     if (!user) {
@@ -181,19 +186,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     setIsContextLoading(true);
     try {
-      const userIngredientsRef = doc(db, 'userIngredients', user.uid);
-      await setDoc(userIngredientsRef, { favoriteIngredients: [] }, { merge: true });
+      const ingredientsDataRef = getUserIngredientsDataRef(user.uid);
+      await setDoc(ingredientsDataRef, { favoriteIngredients: [] }, { merge: true });
       setPreferredIngredients([]);
       toast({ title: "Favorites Cleared", description: "All favorite ingredients removed. AI preferences reset."});
-      // Call preSelectIngredients with empty array if AI needs to be notified of no preferences.
-      // await preSelectIngredients({ ingredients: [] }); // Uncomment if AI should be notified of clearing
     } catch (error) {
       console.error("Error clearing preferred ingredients:", error);
       toast({ title: "Error", description: "Could not clear favorite ingredients in the cloud.", variant: "destructive" });
     } finally {
       setIsContextLoading(false);
     }
-  }, [user, toast, setIsContextLoading]);
+  }, [user, toast]);
 
   const clearRecommendedRecipes = useCallback(() => {
     setRecommendedRecipes([]);
