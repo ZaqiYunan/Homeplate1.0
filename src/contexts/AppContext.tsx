@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { ReactNode } from "react";
@@ -5,71 +6,86 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import type { Recipe } from '@/lib/types';
 import { preSelectIngredients } from '@/ai/flows/pre-select-ingredients-flow';
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from './AuthContext';
+import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
+import { app } from '@/lib/firebase'; // Ensure app is exported from firebase.ts
+
+const db = getFirestore(app);
 
 interface AppContextType {
   storedIngredients: string[];
-  addStoredIngredient: (ingredient: string) => void;
-  removeStoredIngredient: (ingredient: string) => void;
+  addStoredIngredient: (ingredient: string) => Promise<void>;
+  removeStoredIngredient: (ingredient: string) => Promise<void>;
   preferredIngredients: string[];
-  addPreferredIngredient: (ingredient: string) => void;
-  removePreferredIngredient: (ingredient: string) => void;
-  togglePreferredIngredient: (ingredient: string) => void;
-  clearPreferredIngredients: () => void;
+  togglePreferredIngredient: (ingredient: string) => Promise<void>;
+  clearPreferredIngredients: () => Promise<void>;
   recommendedRecipes: Recipe[];
   setRecommendedRecipes: (recipes: Recipe[]) => void;
   clearRecommendedRecipes: () => void;
   recipeRatings: Record<string, number>;
   rateRecipe: (recipeName: string, rating: number) => void;
-  isLoadingRecipes: boolean;
-  setIsLoadingRecipes: (loading: boolean) => void;
+  isContextLoading: boolean; // Renamed from isLoadingRecipes
+  setIsContextLoading: (loading: boolean) => void; // Renamed from setIsLoadingRecipes
   isMounted: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const LOCAL_STORAGE_KEYS = {
-  STORED_INGREDIENTS: 'homeplate_storedIngredients',
-  PREFERRED_INGREDIENTS: 'homeplate_preferredIngredients',
   RECIPE_RATINGS: 'homeplate_recipeRatings',
 };
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
   const [storedIngredients, setStoredIngredients] = useState<string[]>([]);
   const [preferredIngredients, setPreferredIngredients] = useState<string[]>([]);
   const [recommendedRecipes, setRecommendedRecipes] = useState<Recipe[]>([]);
   const [recipeRatings, setRecipeRatings] = useState<Record<string, number>>({});
-  const [isLoadingRecipes, setIsLoadingRecipes] = useState<boolean>(false);
+  const [isContextLoading, setIsContextLoading] = useState<boolean>(false);
   const [isMounted, setIsMounted] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     setIsMounted(true);
     try {
-      const stored = localStorage.getItem(LOCAL_STORAGE_KEYS.STORED_INGREDIENTS);
-      if (stored) setStoredIngredients(JSON.parse(stored));
-
-      const preferred = localStorage.getItem(LOCAL_STORAGE_KEYS.PREFERRED_INGREDIENTS);
-      if (preferred) setPreferredIngredients(JSON.parse(preferred));
-      
       const ratings = localStorage.getItem(LOCAL_STORAGE_KEYS.RECIPE_RATINGS);
       if (ratings) setRecipeRatings(JSON.parse(ratings));
     } catch (error) {
-      console.error("Failed to load from localStorage", error);
-      toast({ title: "Error", description: "Could not load saved data.", variant: "destructive" });
+      console.error("Failed to load ratings from localStorage", error);
+      toast({ title: "Error", description: "Could not load saved recipe ratings.", variant: "destructive" });
     }
   }, [toast]);
 
   useEffect(() => {
-    if (isMounted) {
-      localStorage.setItem(LOCAL_STORAGE_KEYS.STORED_INGREDIENTS, JSON.stringify(storedIngredients));
+    if (isMounted && user) {
+      const fetchUserIngredients = async () => {
+        setIsContextLoading(true);
+        const userIngredientsRef = doc(db, 'userIngredients', user.uid);
+        try {
+          const docSnap = await getDoc(userIngredientsRef);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            setStoredIngredients(data.pantryIngredients || []);
+            setPreferredIngredients(data.favoriteIngredients || []);
+          } else {
+            setStoredIngredients([]);
+            setPreferredIngredients([]);
+          }
+        } catch (error) {
+          console.error("Error fetching user ingredients:", error);
+          toast({ title: "Error", description: "Could not load your ingredients from the cloud.", variant: "destructive" });
+        } finally {
+          setIsContextLoading(false);
+        }
+      };
+      fetchUserIngredients();
+    } else if (isMounted && !user) {
+      // User logged out, clear ingredients state
+      setStoredIngredients([]);
+      setPreferredIngredients([]);
+      // Recipe ratings are kept in localStorage, so they persist across sessions unless manually cleared.
     }
-  }, [storedIngredients, isMounted]);
-
-  useEffect(() => {
-    if (isMounted) {
-      localStorage.setItem(LOCAL_STORAGE_KEYS.PREFERRED_INGREDIENTS, JSON.stringify(preferredIngredients));
-    }
-  }, [preferredIngredients, isMounted]);
+  }, [isMounted, user, toast]);
   
   useEffect(() => {
     if (isMounted) {
@@ -77,72 +93,107 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [recipeRatings, isMounted]);
 
-  const addStoredIngredient = useCallback((ingredient: string) => {
+  const addStoredIngredient = useCallback(async (ingredient: string) => {
+    if (!user) {
+      toast({ title: "Not Logged In", description: "Please log in to save ingredients.", variant: "destructive" });
+      return;
+    }
     const lowerCaseIngredient = ingredient.toLowerCase().trim();
     if (lowerCaseIngredient && !storedIngredients.map(i => i.toLowerCase()).includes(lowerCaseIngredient)) {
-      setStoredIngredients(prev => [...prev, ingredient.trim()]);
-    }
-  }, [storedIngredients]);
-
-  const removeStoredIngredient = useCallback((ingredient: string) => {
-    setStoredIngredients(prev => prev.filter(i => i.toLowerCase() !== ingredient.toLowerCase()));
-  }, []);
-
-  const addPreferredIngredient = useCallback(async (ingredient: string) => {
-    const lowerCaseIngredient = ingredient.toLowerCase().trim();
-    if (lowerCaseIngredient && !preferredIngredients.map(i => i.toLowerCase()).includes(lowerCaseIngredient)) {
-      const newPreferred = [...preferredIngredients, ingredient.trim()];
-      setPreferredIngredients(newPreferred);
+      const newPantryIngredients = [...storedIngredients, ingredient.trim()];
+      setIsContextLoading(true);
       try {
-        await preSelectIngredients({ ingredients: newPreferred });
-        toast({ title: "Preferences Updated", description: `${ingredient} added to preferred ingredients.` });
+        const userIngredientsRef = doc(db, 'userIngredients', user.uid);
+        await setDoc(userIngredientsRef, { pantryIngredients: newPantryIngredients }, { merge: true });
+        setStoredIngredients(newPantryIngredients);
+        toast({ title: "Pantry Updated", description: `${ingredient} added to your pantry.` });
       } catch (error) {
-        console.error("AI preSelectIngredients error:", error);
-        toast({ title: "AI Error", description: "Could not update AI with preferred ingredients.", variant: "destructive" });
+        console.error("Error adding stored ingredient to Firestore:", error);
+        toast({ title: "Error", description: "Could not save ingredient to the cloud.", variant: "destructive" });
+      } finally {
+        setIsContextLoading(false);
       }
+    } else if (storedIngredients.map(i => i.toLowerCase()).includes(lowerCaseIngredient)) {
+        toast({ title: "Duplicate Ingredient", description: `${ingredient} is already in your pantry.`});
     }
-  }, [preferredIngredients, toast]);
-  
-  const removePreferredIngredient = useCallback(async (ingredient: string) => {
-    const newPreferred = preferredIngredients.filter(i => i.toLowerCase() !== ingredient.toLowerCase());
-    setPreferredIngredients(newPreferred);
+  }, [user, storedIngredients, toast, setIsContextLoading]);
+
+  const removeStoredIngredient = useCallback(async (ingredient: string) => {
+    if (!user) {
+      toast({ title: "Not Logged In", description: "Please log in to update ingredients.", variant: "destructive" });
+      return;
+    }
+    const newPantryIngredients = storedIngredients.filter(i => i.toLowerCase() !== ingredient.toLowerCase());
+    setIsContextLoading(true);
     try {
-      if (newPreferred.length > 0) {
-        await preSelectIngredients({ ingredients: newPreferred });
-      }
-      toast({ title: "Preferences Updated", description: `${ingredient} removed from preferred ingredients.` });
+      const userIngredientsRef = doc(db, 'userIngredients', user.uid);
+      await setDoc(userIngredientsRef, { pantryIngredients: newPantryIngredients }, { merge: true });
+      setStoredIngredients(newPantryIngredients);
+      toast({ title: "Pantry Updated", description: `${ingredient} removed from your pantry.` });
     } catch (error) {
-      console.error("AI preSelectIngredients error:", error);
-       toast({ title: "AI Error", description: "Could not update AI with preferred ingredients.", variant: "destructive" });
+      console.error("Error removing stored ingredient from Firestore:", error);
+      toast({ title: "Error", description: "Could not update pantry in the cloud.", variant: "destructive" });
+    } finally {
+      setIsContextLoading(false);
     }
-  }, [preferredIngredients, toast]);
+  }, [user, storedIngredients, toast, setIsContextLoading]);
 
   const togglePreferredIngredient = useCallback(async (ingredient: string) => {
+    if (!user) {
+      toast({ title: "Not Logged In", description: "Please log in to update favorite ingredients.", variant: "destructive" });
+      return;
+    }
     const lowerCaseIngredient = ingredient.toLowerCase().trim();
-    let newPreferred: string[];
-    if (preferredIngredients.map(i => i.toLowerCase()).includes(lowerCaseIngredient)) {
-      newPreferred = preferredIngredients.filter(i => i.toLowerCase() !== lowerCaseIngredient);
-      toast({ title: "Preferences Updated", description: `${ingredient} removed from preferred ingredients.` });
+    let newFavoriteIngredients: string[];
+    const isCurrentlyPreferred = preferredIngredients.map(i => i.toLowerCase()).includes(lowerCaseIngredient);
+
+    if (isCurrentlyPreferred) {
+      newFavoriteIngredients = preferredIngredients.filter(i => i.toLowerCase() !== lowerCaseIngredient);
     } else {
-      newPreferred = [...preferredIngredients, ingredient.trim()];
-      toast({ title: "Preferences Updated", description: `${ingredient} added to preferred ingredients.` });
+      newFavoriteIngredients = [...preferredIngredients, ingredient.trim()];
     }
-    setPreferredIngredients(newPreferred);
+    
+    setIsContextLoading(true);
     try {
-      if (newPreferred.length > 0) {
-        await preSelectIngredients({ ingredients: newPreferred });
+      const userIngredientsRef = doc(db, 'userIngredients', user.uid);
+      await setDoc(userIngredientsRef, { favoriteIngredients: newFavoriteIngredients }, { merge: true });
+      setPreferredIngredients(newFavoriteIngredients);
+      
+      // Call AI to update preferences
+      if (newFavoriteIngredients.length > 0) {
+        await preSelectIngredients({ ingredients: newFavoriteIngredients });
       }
+      // The AI flow itself doesn't return a message for toast, so we provide one here.
+      toast({ title: "Favorite Ingredients Updated", description: `AI preferences updated based on your favorites.` });
+
     } catch (error) {
-        console.error("AI preSelectIngredients error:", error);
-        toast({ title: "AI Error", description: "Could not update AI with preferred ingredients.", variant: "destructive" });
+      console.error("Error toggling preferred ingredient or updating AI:", error);
+      toast({ title: "Error", description: "Could not update favorite ingredients or AI preferences.", variant: "destructive" });
+    } finally {
+      setIsContextLoading(false);
     }
-  }, [preferredIngredients, toast]);
+  }, [user, preferredIngredients, toast, setIsContextLoading]);
 
   const clearPreferredIngredients = useCallback(async () => {
-    setPreferredIngredients([]);
-    toast({ title: "Preferences Cleared", description: "All preferred ingredients removed."});
-    // Optionally call preSelectIngredients with an empty array if the AI supports it or expects it
-  }, [toast]);
+    if (!user) {
+      toast({ title: "Not Logged In", description: "Please log in to clear favorite ingredients.", variant: "destructive" });
+      return;
+    }
+    setIsContextLoading(true);
+    try {
+      const userIngredientsRef = doc(db, 'userIngredients', user.uid);
+      await setDoc(userIngredientsRef, { favoriteIngredients: [] }, { merge: true });
+      setPreferredIngredients([]);
+      toast({ title: "Favorites Cleared", description: "All favorite ingredients removed. AI preferences reset."});
+      // Call preSelectIngredients with empty array if AI needs to be notified of no preferences.
+      // await preSelectIngredients({ ingredients: [] }); // Uncomment if AI should be notified of clearing
+    } catch (error) {
+      console.error("Error clearing preferred ingredients:", error);
+      toast({ title: "Error", description: "Could not clear favorite ingredients in the cloud.", variant: "destructive" });
+    } finally {
+      setIsContextLoading(false);
+    }
+  }, [user, toast, setIsContextLoading]);
 
   const clearRecommendedRecipes = useCallback(() => {
     setRecommendedRecipes([]);
@@ -155,10 +206,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider value={{
       storedIngredients, addStoredIngredient, removeStoredIngredient,
-      preferredIngredients, addPreferredIngredient, removePreferredIngredient, togglePreferredIngredient, clearPreferredIngredients,
+      preferredIngredients, togglePreferredIngredient, clearPreferredIngredients,
       recommendedRecipes, setRecommendedRecipes, clearRecommendedRecipes,
       recipeRatings, rateRecipe,
-      isLoadingRecipes, setIsLoadingRecipes,
+      isContextLoading, setIsContextLoading,
       isMounted
     }}>
       {children}
@@ -173,3 +224,5 @@ export const useAppContext = () => {
   }
   return context;
 };
+
+    

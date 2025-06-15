@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useAppContext } from '@/contexts/AppContext';
@@ -18,8 +19,8 @@ export default function IngredientsPage() {
     togglePreferredIngredient,
     clearPreferredIngredients,
     isMounted,
-    isLoadingRecipes, // Using this as a generic loading indicator for AI calls
-    setIsLoadingRecipes // Using this as a generic loading indicator for AI calls
+    isContextLoading, // Updated from isLoadingRecipes
+    setIsContextLoading // Updated from setIsLoadingRecipes
   } = useAppContext();
 
   if (!isMounted) {
@@ -30,6 +31,23 @@ export default function IngredientsPage() {
     );
   }
 
+  const handleAddPantryIngredient = async (ingredient: string) => {
+    await addStoredIngredient(ingredient);
+  };
+
+  const handleRemovePantryIngredient = async (ingredient: string) => {
+    await removeStoredIngredient(ingredient);
+  };
+
+  const handleToggleFavorite = async (ingredient: string) => {
+    await togglePreferredIngredient(ingredient);
+  };
+  
+  const handleClearFavorites = async () => {
+    await clearPreferredIngredients();
+  };
+
+
   return (
     <div className="space-y-8">
       <h1 className="text-3xl font-bold tracking-tight text-primary">Manage Your Ingredients</h1>
@@ -38,18 +56,18 @@ export default function IngredientsPage() {
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle id="pantry-ingredients-title" className="text-2xl font-semibold text-primary">My Pantry</CardTitle>
-            <CardDescription>Add ingredients you have on hand. These will be used for recipe recommendations.</CardDescription>
+            <CardDescription>Add ingredients you have on hand. These will be saved to your account.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <IngredientForm 
-              onAddIngredient={addStoredIngredient} 
+              onAddIngredient={handleAddPantryIngredient} 
               placeholder="e.g., Chicken breast, Onion, Olive oil"
               buttonText="Add to Pantry"
             />
             <IngredientList
               title="Available Ingredients"
               ingredients={storedIngredients}
-              onRemoveIngredient={removeStoredIngredient}
+              onRemoveIngredient={handleRemovePantryIngredient}
               emptyStateMessage="Your pantry is empty. Add some ingredients!"
               chipVariant="secondary"
             />
@@ -64,8 +82,7 @@ export default function IngredientsPage() {
           <CardHeader>
             <CardTitle id="preferred-ingredients-title" className="text-2xl font-semibold text-primary">Favorite Ingredients</CardTitle>
             <CardDescription>
-              Select ingredients you'd like the AI to prioritize in recommendations.
-              You can select from your pantry or add new favorites.
+              Select ingredients you'd like the AI to prioritize in recommendations. Saved to your account.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -77,7 +94,8 @@ export default function IngredientsPage() {
                     <Button
                       key={ingredient}
                       variant={preferredIngredients.includes(ingredient) ? "default" : "outline"}
-                      onClick={() => togglePreferredIngredient(ingredient)}
+                      onClick={() => handleToggleFavorite(ingredient)}
+                      disabled={isContextLoading}
                       className={`rounded-full text-sm px-3 py-1 h-auto transition-all duration-200 ease-in-out transform hover:scale-105 ${preferredIngredients.includes(ingredient) ? 'bg-primary text-primary-foreground' : 'border-primary text-primary hover:bg-primary/10'}`}
                     >
                       {preferredIngredients.includes(ingredient) && <CheckCircle size={16} className="mr-2" />}
@@ -90,12 +108,12 @@ export default function IngredientsPage() {
             <IngredientList
               title="Current Favorites"
               ingredients={preferredIngredients}
-              onRemoveIngredient={(ingredient) => togglePreferredIngredient(ingredient)} // Effectively removes if clicked
+              onRemoveIngredient={(ingredient) => handleToggleFavorite(ingredient)} 
               emptyStateMessage="No favorite ingredients selected yet."
               chipVariant="preferred"
             />
              {preferredIngredients.length > 0 && (
-              <Button variant="outline" onClick={clearPreferredIngredients} className="mt-2">
+              <Button variant="outline" onClick={handleClearFavorites} className="mt-2" disabled={isContextLoading}>
                 Clear All Favorites
               </Button>
             )}
@@ -110,12 +128,14 @@ export default function IngredientsPage() {
         </Card>
       </section>
 
-      {isLoadingRecipes && (
+      {isContextLoading && ( // Updated from isLoadingRecipes
         <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50">
           <Loader2 className="h-10 w-10 animate-spin text-primary" />
-          <p className="ml-2 text-primary">Updating AI preferences...</p>
+          <p className="ml-2 text-primary">Updating preferences...</p>
         </div>
       )}
     </div>
   );
 }
+
+    

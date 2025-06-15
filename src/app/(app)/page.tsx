@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -19,8 +20,8 @@ export default function HomePage() {
     preferredIngredients,
     recommendedRecipes,
     setRecommendedRecipes,
-    isLoadingRecipes,
-    setIsLoadingRecipes,
+    isContextLoading, // Updated from isLoadingRecipes
+    setIsContextLoading, // Updated from setIsLoadingRecipes
     isMounted,
     clearRecommendedRecipes,
   } = useAppContext();
@@ -64,12 +65,12 @@ export default function HomePage() {
       return;
     }
 
-    setIsLoadingRecipes(true);
+    setIsContextLoading(true); // Updated from setIsLoadingRecipes
     try {
       const result = await recommendRecipes({
         ingredients: allIngredients,
         preferredIngredients: preferredIngredients.length > 0 ? preferredIngredients : undefined,
-        numRecipes: 6, // Request a few more recipes
+        numRecipes: 6, 
       });
       setRecommendedRecipes(result.recipes);
       if (result.recipes.length === 0) {
@@ -93,7 +94,7 @@ export default function HomePage() {
         variant: "destructive",
       });
     } finally {
-      setIsLoadingRecipes(false);
+      setIsContextLoading(false); // Updated from setIsLoadingRecipes
     }
   };
 
@@ -122,7 +123,7 @@ export default function HomePage() {
         <CardContent className="space-y-6">
           <IngredientPreview
             title="Your Current Ingredients"
-            description="These are ingredients from your pantry and any you've added for this search."
+            description="These are ingredients from your pantry (synced with your account) and any you've added for this search."
             ingredients={combinedIngredients}
             onRemoveTemporaryIngredient={handleRemoveTemporaryIngredient}
             maxHeight="150px"
@@ -138,7 +139,7 @@ export default function HomePage() {
 
           {preferredIngredients.length > 0 && (
             <div className="p-4 border rounded-lg bg-secondary/50">
-              <h3 className="text-sm font-medium text-secondary-foreground mb-1">Prioritizing:</h3>
+              <h3 className="text-sm font-medium text-secondary-foreground mb-1">Prioritizing (from your account's favorites):</h3>
               <div className="flex flex-wrap gap-1">
                 {preferredIngredients.map(pi => (
                   <span key={pi} className="text-xs px-2 py-0.5 bg-primary text-primary-foreground rounded-full">{pi}</span>
@@ -149,16 +150,16 @@ export default function HomePage() {
           
           <Button 
             onClick={handleFindRecipes} 
-            disabled={isLoadingRecipes} 
+            disabled={isContextLoading} // Updated from isLoadingRecipes
             size="lg" 
             className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-base py-3 shadow-md hover:shadow-lg transition-shadow"
           >
-            {isLoadingRecipes ? (
+            {isContextLoading ? ( // Updated from isLoadingRecipes
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />
             ) : (
               <Zap className="mr-2 h-5 w-5" />
             )}
-            {isLoadingRecipes ? "Finding Recipes..." : "Generate Recipe Ideas"}
+            {isContextLoading ? "Finding Recipes..." : "Generate Recipe Ideas"} 
           </Button>
         </CardContent>
       </Card>
@@ -171,7 +172,7 @@ export default function HomePage() {
         </Alert>
       )}
 
-      {recommendedRecipes.length === 0 && !isLoadingRecipes && !error && combinedIngredients.length > 0 && (
+      {recommendedRecipes.length === 0 && !isContextLoading && !error && combinedIngredients.length > 0 && ( // Updated from isLoadingRecipes
          <Alert className="shadow-md bg-card">
             <Info className="h-4 w-4" />
             <AlertTitle>Ready to Search?</AlertTitle>
@@ -198,3 +199,5 @@ export default function HomePage() {
     </div>
   );
 }
+
+    
