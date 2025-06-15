@@ -37,13 +37,15 @@ export default function SignupPage() {
       router.push('/');
     } catch (error: any) {
       console.error("Email signup error:", error);
-      let description = error.message || 'Please try again.';
+      let description = 'Please try again.';
       if (error.code === 'auth/configuration-not-found') {
         description = 'Firebase auth configuration error. Ensure Email/Password sign-in is enabled in your Firebase project console (Authentication > Sign-in method).';
       } else if (error.code === 'auth/api-key-not-valid') {
         description = 'Invalid Firebase API Key. Check your .env.local file and Firebase project settings.';
       } else if (error.code === 'auth/email-already-in-use') {
         description = 'This email is already in use. Try logging in or using a different email.';
+      } else {
+        description = error.message || 'An unexpected error occurred. Check console or Firebase settings.';
       }
       toast({
         title: 'Signup Failed',
@@ -64,7 +66,7 @@ export default function SignupPage() {
       router.push('/');
     } catch (error: any)      {
       console.error("Google signup error:", error);
-      let description = error.message || 'Could not sign up with Google. Please try again.';
+      let description = 'Could not sign up with Google. Please try again.';
        if (error.code === 'auth/popup-closed-by-user') {
         description = 'Google Sign-Up was cancelled.';
       } else if (error.code === 'auth/account-exists-with-different-credential') {
@@ -74,7 +76,9 @@ export default function SignupPage() {
       } else if (error.code === 'auth/configuration-not-found' || error.code === 'auth/operation-not-allowed') {
          description = 'Google Sign-In is not enabled for this project. Enable it in your Firebase console (Authentication > Sign-in method > Google).';
       } else if (error.code === 'auth/unauthorized-domain') {
-        description = 'This domain is not authorized for Google Sign-In. Add your app\'s domain (where it\'s hosted/previewed) to the "Authorized domains" list in Firebase console (Authentication > Settings).';
+        description = 'This domain is not authorized for Google Sign-In. Please add your app\'s preview domain (likely homeplate-488d9.firebaseapp.com) to the "Authorized domains" list in your Firebase project console (Authentication > Settings).';
+      } else {
+        description = error.message || 'An unexpected error occurred. Check console or Firebase settings.';
       }
       toast({
         title: 'Google Signup Failed',
