@@ -39,9 +39,9 @@ export default function SignupPage() {
       console.error("Email signup error:", error);
       let description = error.message || 'Please try again.';
       if (error.code === 'auth/configuration-not-found') {
-        description = 'Firebase auth configuration not found. Please ensure Email/Password sign-in is enabled in your Firebase project console (Authentication > Sign-in method).';
+        description = 'Firebase auth configuration error. Ensure Email/Password sign-in is enabled in your Firebase project console (Authentication > Sign-in method).';
       } else if (error.code === 'auth/api-key-not-valid') {
-        description = 'Invalid Firebase API Key. Please check your .env.local file and Firebase project settings.';
+        description = 'Invalid Firebase API Key. Check your .env.local file and Firebase project settings.';
       } else if (error.code === 'auth/email-already-in-use') {
         description = 'This email is already in use. Try logging in or using a different email.';
       }
@@ -62,17 +62,19 @@ export default function SignupPage() {
       await signInWithPopup(auth, provider);
       toast({ title: 'Signup Successful', description: 'Welcome!' });
       router.push('/');
-    } catch (error: any) {
+    } catch (error: any)      {
       console.error("Google signup error:", error);
       let description = error.message || 'Could not sign up with Google. Please try again.';
        if (error.code === 'auth/popup-closed-by-user') {
         description = 'Google Sign-Up was cancelled.';
       } else if (error.code === 'auth/account-exists-with-different-credential') {
-        description = 'An account already exists with this email address using a different sign-in method. Try logging in.';
+        description = 'An account already exists with this email. Try logging in or using a different sign-in method.';
       } else if (error.code === 'auth/api-key-not-valid') {
-        description = 'Invalid Firebase API Key. Please check your .env.local file and Firebase project settings.';
+        description = 'Invalid Firebase API Key. Check your .env.local file and Firebase project settings.';
       } else if (error.code === 'auth/configuration-not-found' || error.code === 'auth/operation-not-allowed') {
-         description = 'Google Sign-In is not enabled for this project. Please enable it in your Firebase project console (Authentication > Sign-in method > Google).';
+         description = 'Google Sign-In is not enabled for this project. Enable it in your Firebase console (Authentication > Sign-in method > Google).';
+      } else if (error.code === 'auth/unauthorized-domain') {
+        description = 'This domain is not authorized for Google Sign-In. Add your app\'s domain (where it\'s hosted/previewed) to the "Authorized domains" list in Firebase console (Authentication > Settings).';
       }
       toast({
         title: 'Google Signup Failed',
