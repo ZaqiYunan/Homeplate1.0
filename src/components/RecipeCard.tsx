@@ -53,25 +53,14 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
     );
   }
   
-  // Use a simple hashing function for pseudo-random image based on recipe name
-  const getPlaceholderImageId = (name: string) => {
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-      const char = name.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash |= 0; // Convert to 32bit integer
-    }
-    return Math.abs(hash % 1000); // Keep it within a reasonable range for picsum.photos
-  };
-
   const recipeNameHint = recipe.name.split(' ').slice(0, 2).join(' ').toLowerCase();
 
   return (
     <Card className="flex flex-col h-full shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-xl overflow-hidden bg-card">
       <div className="relative w-full h-48">
         <Image 
-          src={`https://picsum.photos/seed/${getPlaceholderImageId(recipe.name)}/400/300`}
-          alt={`Image of ${recipe.name}`}
+          src="https://placehold.co/400x300.png"
+          alt={`Placeholder image for ${recipe.name}`}
           layout="fill"
           objectFit="cover"
           data-ai-hint={recipeNameHint}
@@ -109,4 +98,3 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
     </Card>
   );
 }
-
