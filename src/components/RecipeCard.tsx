@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { Recipe } from '@/lib/types';
@@ -63,6 +64,7 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
     return Math.abs(hash % 1000); // Keep it within a reasonable range for picsum.photos
   };
 
+  const recipeNameHint = recipe.name.split(' ').slice(0, 2).join(' ').toLowerCase();
 
   return (
     <Card className="flex flex-col h-full shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-xl overflow-hidden bg-card">
@@ -72,7 +74,7 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
           alt={`Image of ${recipe.name}`}
           layout="fill"
           objectFit="cover"
-          data-ai-hint="food meal"
+          data-ai-hint={recipeNameHint}
         />
       </div>
       <CardHeader>
@@ -107,3 +109,4 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
     </Card>
   );
 }
+
