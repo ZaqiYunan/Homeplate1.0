@@ -15,7 +15,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { RecipeDisplay } from './RecipeDisplay';
-import Image from 'next/image';
 
 interface RecipeCardProps {
   recipe: Recipe;
@@ -36,7 +35,6 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
   if (!isMounted) {
     return (
       <Card className="flex flex-col h-full shadow-lg animate-pulse">
-        <div className="h-48 bg-muted rounded-t-lg"></div>
         <CardHeader>
           <div className="h-6 bg-muted rounded w-3/4"></div>
           <div className="h-4 bg-muted rounded w-1/2 mt-1"></div>
@@ -53,19 +51,8 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
     );
   }
   
-  const recipeNameHint = recipe.name.split(' ').slice(0, 2).join(' ').toLowerCase();
-
   return (
     <Card className="flex flex-col h-full shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-xl overflow-hidden bg-card">
-      <div className="relative w-full h-48">
-        <Image 
-          src="https://placehold.co/400x300.png"
-          alt={`Placeholder image for ${recipe.name}`}
-          layout="fill"
-          objectFit="cover"
-          data-ai-hint={recipeNameHint}
-        />
-      </div>
       <CardHeader>
         <CardTitle className="text-xl font-semibold text-primary group-hover:text-primary/90 transition-colors">{recipe.name}</CardTitle>
         <CardDescription className="text-xs text-muted-foreground">
@@ -98,3 +85,4 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
     </Card>
   );
 }
+
