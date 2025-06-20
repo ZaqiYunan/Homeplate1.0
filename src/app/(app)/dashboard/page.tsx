@@ -2,6 +2,7 @@
 "use client";
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppContext } from '@/contexts/AppContext';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,6 +23,7 @@ import {
   ScanLine,
   ArrowRight,
   HandCoins,
+  Loader2, // Added Loader2
 } from 'lucide-react';
 
 interface StatCardProps {
@@ -70,6 +72,7 @@ const OverviewItem: React.FC<OverviewItemProps> = ({ icon: Icon, name, count, ic
 export default function DashboardPage() {
   const { user } = useAuth();
   const { storedIngredients, isMounted, isContextLoading } = useAppContext();
+  const router = useRouter();
 
   const getFirstName = () => {
     if (user?.displayName) {
@@ -84,11 +87,15 @@ export default function DashboardPage() {
   if (!isMounted || isContextLoading) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-10rem)]">
-        <LineChart className="h-16 w-16 animate-spin text-primary" />
+        <Loader2 className="h-16 w-16 animate-spin text-primary" />
       </div>
     );
   }
   
+  const pantryItemCount = storedIngredients.length > 6 
+    ? storedIngredients.length - 6 
+    : Math.max(0, storedIngredients.length - 4);
+
   const statCardsData = [
     { title: "Total Items", value: storedIngredients.length, icon: Package, trend: "", description: "Items in your pantry" },
     { title: "Expiring Soon", value: 0, icon: Clock3, trend: "Next 3 days", description: "Items needing attention", trendColor: "text-orange-500" },
@@ -98,7 +105,7 @@ export default function DashboardPage() {
 
   const storageOverviewData = [
     { name: "Refrigerator", count: 4, icon: LayoutGrid, iconColor: "text-blue-500" },
-    { name: "Pantry", count: storedIngredients.length > 6 ? storedIngredients.length - 6 : Math.max(0, storedIngredients.length - 4) , icon: Archive, iconColor: "text-orange-500" },
+    { name: "Pantry", count: pantryItemCount, icon: Archive, iconColor: "text-orange-500" },
     { name: "Freezer", count: 2, icon: Snowflake, iconColor: "text-sky-500" },
   ];
 
@@ -176,13 +183,24 @@ export default function DashboardPage() {
               <CardTitle className="text-xl font-semibold">Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button variant="secondary" className="w-full justify-start text-primary-foreground bg-primary-foreground/20 hover:bg-primary-foreground/30">
+              <Button 
+                variant="secondary" 
+                className="w-full justify-start text-primary-foreground bg-primary-foreground/20 hover:bg-primary-foreground/30"
+                onClick={() => router.push('/ingredients')}
+              >
                 <PlusCircle className="mr-2 h-5 w-5" /> Add New Ingredient
               </Button>
-              <Button variant="secondary" className="w-full justify-start text-primary-foreground bg-primary-foreground/20 hover:bg-primary-foreground/30">
+              <Button 
+                variant="secondary" 
+                className="w-full justify-start text-primary-foreground bg-primary-foreground/20 hover:bg-primary-foreground/30"
+              >
                 <ScanLine className="mr-2 h-5 w-5" /> Scan Barcode (Coming Soon)
               </Button>
-               <Button variant="secondary" className="w-full justify-start text-primary-foreground bg-primary-foreground/20 hover:bg-primary-foreground/30" onClick={() => alert("Feature coming soon!")}>
+               <Button 
+                variant="secondary" 
+                className="w-full justify-start text-primary-foreground bg-primary-foreground/20 hover:bg-primary-foreground/30"
+                onClick={() => router.push('/ingredients')}
+              >
                 <ArrowRight className="mr-2 h-5 w-5" /> View Full Inventory
               </Button>
             </CardContent>
