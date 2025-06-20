@@ -6,7 +6,7 @@ import { HomeplateLogo } from '@/components/icons/HomeplateLogo';
 import { Button } from '@/components/ui/button';
 import { useRouter, usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { ChefHat, LucideListChecks, LogIn, LogOut, UserPlus, UserCircle2 } from 'lucide-react';
+import { ChefHat, LucideListChecks, LogIn, LogOut, UserPlus, UserCircle2, LayoutDashboard } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { auth } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
@@ -27,6 +27,7 @@ export function Header() {
   const { toast } = useToast();
 
   const navItems = [
+    { href: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} />, protected: true },
     { href: '/', label: 'Recipe Finder', icon: <ChefHat size={18} />, protected: true },
     { href: '/ingredients', label: 'My Ingredients', icon: <LucideListChecks size={18} />, protected: true },
   ];
