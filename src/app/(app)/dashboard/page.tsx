@@ -23,7 +23,7 @@ import {
   ScanLine,
   ArrowRight,
   HandCoins,
-  Loader2, // Added Loader2
+  Loader2,
 } from 'lucide-react';
 
 interface StatCardProps {
@@ -92,28 +92,57 @@ export default function DashboardPage() {
     );
   }
   
-  const pantryItemCount = storedIngredients.length > 6 
-    ? storedIngredients.length - 6 
-    : Math.max(0, storedIngredients.length - 4);
+  const totalIngredients = storedIngredients.length;
+
+  const pantryItemCount = totalIngredients > 6 
+    ? totalIngredients - 6 
+    : Math.max(0, totalIngredients - 4);
 
   const statCardsData = [
-    { title: "Total Items", value: storedIngredients.length, icon: Package, trend: "", description: "Items in your pantry" },
-    { title: "Expiring Soon", value: 0, icon: Clock3, trend: "Next 3 days", description: "Items needing attention", trendColor: "text-orange-500" },
-    { title: "Fresh Items", value: storedIngredients.length, icon: LineChart, trend: "Good condition", description: "Estimated fresh items", trendColor: "text-green-500" },
-    { title: "Waste Saved (Est.)", value: "15%", icon: HandCoins, trend: "vs last month", description: "Contribution to less waste", trendColor: "text-purple-500" }
+    { title: "Total Items", value: totalIngredients, icon: Package, trend: "", description: "Items in your pantry" },
+    { title: "Expiring Soon", value: 0, icon: Clock3, trend: "Next 3 days", description: "Items needing attention (placeholder)", trendColor: "text-orange-500" },
+    { title: "Fresh Items", value: totalIngredients, icon: LineChart, trend: "Good condition", description: "Estimated fresh items", trendColor: "text-green-500" },
+    { title: "Waste Saved (Est.)", value: "15%", icon: HandCoins, trend: "vs last month", description: "Contribution to less waste (placeholder)", trendColor: "text-purple-500" }
   ];
 
   const storageOverviewData = [
-    { name: "Refrigerator", count: 4, icon: LayoutGrid, iconColor: "text-blue-500" },
-    { name: "Pantry", count: pantryItemCount, icon: Archive, iconColor: "text-orange-500" },
-    { name: "Freezer", count: 2, icon: Snowflake, iconColor: "text-sky-500" },
+    { name: "Refrigerator", count: 4, icon: LayoutGrid, iconColor: "text-blue-500" }, // Placeholder count
+    { name: "Pantry", count: pantryItemCount, icon: Archive, iconColor: "text-orange-500" }, // Dynamic based on total, arbitrary split
+    { name: "Freezer", count: 2, icon: Snowflake, iconColor: "text-sky-500" }, // Placeholder count
   ];
 
+  let proteinCount, vegetablesCount, grainsCount;
+  if (totalIngredients === 0) {
+    proteinCount = 0;
+    vegetablesCount = 0;
+    grainsCount = 0;
+  } else if (totalIngredients === 1) {
+    proteinCount = 1;
+    vegetablesCount = 0;
+    grainsCount = 0;
+  } else if (totalIngredients === 2) {
+    proteinCount = 1;
+    vegetablesCount = 1;
+    grainsCount = 0;
+  } else if (totalIngredients === 3) {
+    proteinCount = 1;
+    vegetablesCount = 1;
+    grainsCount = 1;
+  } else if (totalIngredients === 4) {
+    proteinCount = 2;
+    vegetablesCount = 1;
+    grainsCount = 1;
+  } else { // totalIngredients >= 5
+    proteinCount = 2;
+    vegetablesCount = 2;
+    grainsCount = 1;
+  }
+
   const topCategoriesData = [
-    { name: "Protein", count: 2, color: "hsl(var(--chart-2))" }, // Teal/Green
-    { name: "Vegetables", count: 2, color: "hsl(var(--chart-3))" }, // Dark Blue
-    { name: "Grains", count: 1, color: "hsl(var(--chart-5))" }, // Orange
-  ];
+    { name: "Protein", count: proteinCount, color: "hsl(var(--chart-2))" }, 
+    { name: "Vegetables", count: vegetablesCount, color: "hsl(var(--chart-3))" },
+    { name: "Grains", count: grainsCount, color: "hsl(var(--chart-5))" }, 
+  ].filter(cat => cat.count > 0); // Only show categories if they have items
 
 
   return (
@@ -166,7 +195,7 @@ export default function DashboardPage() {
               <CardTitle className="text-xl font-semibold text-primary">Top Categories</CardTitle>
             </CardHeader>
             <CardContent>
-              {topCategoriesData.map(cat => (
+              {topCategoriesData.length > 0 ? topCategoriesData.map(cat => (
                 <div key={cat.name} className="flex items-center justify-between py-1.5">
                   <div className="flex items-center">
                     <Circle className="h-3 w-3 mr-3" style={{ fill: cat.color, color: cat.color }} />
@@ -174,7 +203,9 @@ export default function DashboardPage() {
                   </div>
                   <span className="text-sm font-medium text-primary">{cat.count} items</span>
                 </div>
-              ))}
+              )) : (
+                <p className="text-sm text-muted-foreground">No ingredients to categorize yet.</p>
+              )}
             </CardContent>
           </Card>
 
@@ -210,3 +241,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
