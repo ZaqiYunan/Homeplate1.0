@@ -78,7 +78,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 pantryItems = data.pantryIngredients.map((name: string) => ({ name, location: 'pantry' as StorageLocation }));
                 // Optionally, update Firestore with the new structure here if desired
                 // await setDoc(ingredientsDataRef, { pantryIngredients: pantryItems }, { merge: true });
-                 toast({ title: "Pantry Updated", description: "Your ingredients have been moved to 'pantry' by default. You can update their locations." });
+                 toast({ title: "Storage Updated", description: "Your ingredients have been defaulted to 'pantry'. You can update their locations." });
               } else {
                 pantryItems = data.pantryIngredients;
               }
@@ -124,7 +124,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const ingredientsDataRef = getUserIngredientsDataRef(user.uid);
         await setDoc(ingredientsDataRef, { pantryIngredients: newPantryIngredients }, { merge: true });
         setStoredIngredients(newPantryIngredients);
-        toast({ title: "Pantry Updated", description: `${name} added to your ${location}.` });
+        toast({ title: "Storage Updated", description: `${name} added to your ${location}.` });
       } catch (error) {
         console.error("Error adding stored ingredient to Firestore:", error);
         toast({ title: "Error", description: "Could not save ingredient to the cloud.", variant: "destructive" });
@@ -132,7 +132,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setIsContextLoading(false);
       }
     } else if (storedIngredients.some(i => i.name.toLowerCase() === lowerCaseName)) {
-        toast({ title: "Duplicate Ingredient", description: `${name} is already in your pantry.`});
+        toast({ title: "Duplicate Ingredient", description: `${name} is already in your storage.`});
     }
   }, [user, storedIngredients, toast]);
 
@@ -153,10 +153,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         await setDoc(ingredientsDataRef, { favoriteIngredients: newPreferred }, { merge: true });
         setPreferredIngredients(newPreferred);
       }
-      toast({ title: "Pantry Updated", description: `${name} removed.` });
+      toast({ title: "Storage Updated", description: `${name} removed.` });
     } catch (error) {
       console.error("Error removing stored ingredient from Firestore:", error);
-      toast({ title: "Error", description: "Could not update pantry in the cloud.", variant: "destructive" });
+      toast({ title: "Error", description: "Could not update storage in the cloud.", variant: "destructive" });
     } finally {
       setIsContextLoading(false);
     }
@@ -169,7 +169,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     const ingredientIndex = storedIngredients.findIndex(i => i.name.toLowerCase() === name.toLowerCase());
     if (ingredientIndex === -1) {
-      toast({ title: "Not Found", description: "Ingredient not found in your pantry.", variant: "destructive" });
+      toast({ title: "Not Found", description: "Ingredient not found in your storage.", variant: "destructive" });
       return;
     }
 

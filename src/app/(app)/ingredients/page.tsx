@@ -126,14 +126,14 @@ export default function IngredientsPage() {
       <section aria-labelledby="add-ingredient-title">
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle id="add-ingredient-title" className="text-2xl font-semibold text-primary">Add to Pantry</CardTitle>
+            <CardTitle id="add-ingredient-title" className="text-2xl font-semibold text-primary">Add to Storage</CardTitle>
             <CardDescription>Add ingredients you have on hand, specifying their storage location. Saved to your account.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <IngredientForm 
               onAddIngredient={handleAddPantryIngredient} 
               placeholder="e.g., Chicken breast, Onion, Olive oil"
-              buttonText="Add to Pantry"
+              buttonText="Add to Storage"
             />
           </CardContent>
         </Card>
@@ -142,7 +142,7 @@ export default function IngredientsPage() {
       <Separator className="my-8" />
 
       <section aria-labelledby="pantry-locations-title">
-        <h2 id="pantry-locations-title" className="text-2xl font-semibold text-primary mb-4">Your Pantry Storage</h2>
+        <h2 id="pantry-locations-title" className="text-2xl font-semibold text-primary mb-4">Your Storage Locations</h2>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {renderIngredientListForLocation('pantry', 'In the Pantry')}
           {renderIngredientListForLocation('refrigerator', 'In the Refrigerator')}
@@ -158,13 +158,13 @@ export default function IngredientsPage() {
           <CardHeader>
             <CardTitle id="preferred-ingredients-title" className="text-2xl font-semibold text-primary">Favorite Ingredients</CardTitle>
             <CardDescription>
-              Select ingredients from your pantry you'd like the AI to prioritize. Saved to your account.
+              Select ingredients from your storage you'd like the AI to prioritize. Saved to your account.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {allPantryIngredientNames.length > 0 && (
               <>
-                <h3 className="text-md font-medium text-foreground">Select from Pantry:</h3>
+                <h3 className="text-md font-medium text-foreground">Select from Storage:</h3>
                 <div className="flex flex-wrap gap-2 mb-4">
                   {allPantryIngredientNames.map(ingredientName => (
                     <Button
