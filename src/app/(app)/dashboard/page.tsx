@@ -24,7 +24,10 @@ import {
   ArrowRight,
   HandCoins,
   Loader2,
+  Refrigerator, // Added
+  HelpCircle // Added
 } from 'lucide-react';
+import type { StorageLocation } from '@/lib/types';
 
 interface StatCardProps {
   title: string;
@@ -94,9 +97,15 @@ export default function DashboardPage() {
   
   const totalIngredients = storedIngredients.length;
 
-  const pantryItemCount = totalIngredients > 6 
-    ? totalIngredients - 6 
-    : Math.max(0, totalIngredients - 4);
+  const countByLocation = (location: StorageLocation) => {
+    return storedIngredients.filter(item => item.location === location).length;
+  };
+
+  const pantryCount = countByLocation('pantry');
+  const refrigeratorCount = countByLocation('refrigerator');
+  const freezerCount = countByLocation('freezer');
+  const unknownCount = countByLocation('unknown');
+
 
   const statCardsData = [
     { title: "Total Items", value: totalIngredients, icon: Package, trend: "", description: "Items in your pantry" },
@@ -106,10 +115,14 @@ export default function DashboardPage() {
   ];
 
   const storageOverviewData = [
-    { name: "Refrigerator", count: 4, icon: LayoutGrid, iconColor: "text-blue-500" }, // Placeholder count
-    { name: "Pantry", count: pantryItemCount, icon: Archive, iconColor: "text-orange-500" }, // Dynamic based on total, arbitrary split
-    { name: "Freezer", count: 2, icon: Snowflake, iconColor: "text-sky-500" }, // Placeholder count
+    { name: "Pantry", count: pantryCount, icon: Archive, iconColor: "text-orange-500" },
+    { name: "Refrigerator", count: refrigeratorCount, icon: Refrigerator, iconColor: "text-blue-500" },
+    { name: "Freezer", count: freezerCount, icon: Snowflake, iconColor: "text-sky-500" },
   ];
+  if (unknownCount > 0) {
+    storageOverviewData.push({ name: "Unknown Location", count: unknownCount, icon: HelpCircle, iconColor: "text-gray-500" });
+  }
+
 
   let proteinCount, vegetablesCount, grainsCount;
   if (totalIngredients === 0) {
@@ -132,17 +145,22 @@ export default function DashboardPage() {
     proteinCount = 2;
     vegetablesCount = 1;
     grainsCount = 1;
-  } else { // totalIngredients >= 5
-    proteinCount = 2;
-    vegetablesCount = 2;
-    grainsCount = 1;
+  } else { 
+    proteinCount = Math.ceil(totalIngredients * 0.4); // Example distribution
+    vegetablesCount = Math.ceil(totalIngredients * 0.4);
+    grainsCount = Math.max(1, totalIngredients - proteinCount - vegetablesCount); 
+    if (totalIngredients >= 5) { // Cap if desired
+        proteinCount = Math.min(proteinCount, 2 + Math.floor((totalIngredients-5)/3));
+        vegetablesCount = Math.min(vegetablesCount, 2 + Math.floor((totalIngredients-5)/3));
+        grainsCount = Math.min(grainsCount, 1 + Math.floor((totalIngredients-5)/3));
+    }
   }
 
   const topCategoriesData = [
     { name: "Protein", count: proteinCount, color: "hsl(var(--chart-2))" }, 
     { name: "Vegetables", count: vegetablesCount, color: "hsl(var(--chart-3))" },
     { name: "Grains", count: grainsCount, color: "hsl(var(--chart-5))" }, 
-  ].filter(cat => cat.count > 0); // Only show categories if they have items
+  ].filter(cat => cat.count > 0); 
 
 
   return (
@@ -241,4 +259,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

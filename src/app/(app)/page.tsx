@@ -13,17 +13,19 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import type { StorageLocation } from '@/lib/types'; // For IngredientForm, though it internally handles this
 
 export default function HomePage() {
   const {
-    storedIngredients,
+    storedIngredients, // Now StoredIngredientItem[]
     preferredIngredients,
     recommendedRecipes,
     setRecommendedRecipes,
-    isContextLoading, // Updated from isLoadingRecipes
-    setIsContextLoading, // Updated from setIsLoadingRecipes
+    isContextLoading,
+    setIsContextLoading,
     isMounted,
     clearRecommendedRecipes,
+    addStoredIngredient, // Added for IngredientPreview direct add
   } = useAppContext();
   const [temporaryIngredients, setTemporaryIngredients] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +33,12 @@ export default function HomePage() {
 
   const handleAddTemporaryIngredient = (ingredient: string) => {
     const lowerCaseIngredient = ingredient.toLowerCase().trim();
-    if (lowerCaseIngredient && !temporaryIngredients.map(i=>i.toLowerCase()).includes(lowerCaseIngredient) && !storedIngredients.map(i=>i.toLowerCase()).includes(lowerCaseIngredient)) {
+    const allCurrentIngredientNames = [
+      ...temporaryIngredients.map(i => i.toLowerCase()),
+      ...storedIngredients.map(item => item.name.toLowerCase())
+    ];
+
+    if (lowerCaseIngredient && !allCurrentIngredientNames.includes(lowerCaseIngredient)) {
       setTemporaryIngredients(prev => [...prev, ingredient.trim()]);
     } else {
       toast({
@@ -53,9 +60,11 @@ export default function HomePage() {
   const handleFindRecipes = async () => {
     setError(null);
     clearRecommendedRecipes();
-    const allIngredients = [...new Set([...storedIngredients, ...temporaryIngredients].map(i => i.trim()).filter(Boolean))];
+    
+    const storedIngredientNames = storedIngredients.map(item => item.name.trim());
+    const allIngredientNames = [...new Set([...storedIngredientNames, ...temporaryIngredients].map(i => i.trim()).filter(Boolean))];
 
-    if (allIngredients.length === 0) {
+    if (allIngredientNames.length === 0) {
       setError("Please add some ingredients to find recipes.");
       toast({
         title: "Missing Ingredients",
@@ -65,10 +74,10 @@ export default function HomePage() {
       return;
     }
 
-    setIsContextLoading(true); // Updated from setIsLoadingRecipes
+    setIsContextLoading(true);
     try {
       const result = await recommendRecipes({
-        ingredients: allIngredients,
+        ingredients: allIngredientNames,
         preferredIngredients: preferredIngredients.length > 0 ? preferredIngredients : undefined,
         numRecipes: 6, 
       });
@@ -94,7 +103,7 @@ export default function HomePage() {
         variant: "destructive",
       });
     } finally {
-      setIsContextLoading(false); // Updated from setIsLoadingRecipes
+      setIsContextLoading(false);
     }
   };
 
@@ -106,7 +115,12 @@ export default function HomePage() {
     );
   }
 
-  const combinedIngredients = [...new Set([...storedIngredients, ...temporaryIngredients])];
+  const combinedIngredientNamesForPreview = [
+    ...new Set([
+      ...storedIngredients.map(item => item.name), 
+      ...temporaryIngredients
+    ])
+  ];
 
   return (
     <div className="space-y-8">
@@ -123,19 +137,23 @@ export default function HomePage() {
         <CardContent className="space-y-6">
           <IngredientPreview
             title="Your Current Ingredients"
-            description="These are ingredients from your pantry (synced with your account) and any you've added for this search."
-            ingredients={combinedIngredients}
+            description="Ingredients from your pantry (synced) and temporary additions for this search."
+            ingredients={combinedIngredientNamesForPreview}
+            temporaryIngredients={temporaryIngredients}
+            storedIngredients={storedIngredients.map(item => item.name)}
             onRemoveTemporaryIngredient={handleRemoveTemporaryIngredient}
             maxHeight="150px"
             showClearAll={temporaryIngredients.length > 0}
             onClearAll={handleClearTemporaryIngredients}
           />
-
+          {/* The main IngredientForm on this page adds to temporaryIngredients */}
+          {/* To add directly to pantry, user goes to /ingredients page */}
           <IngredientForm
-            onAddIngredient={handleAddTemporaryIngredient}
+            onAddIngredient={(name, _location) => handleAddTemporaryIngredient(name)} // Location ignored for temporary
             placeholder="Add temporary ingredient (e.g., fresh basil)"
             buttonText="Add for this Search"
           />
+
 
           {preferredIngredients.length > 0 && (
             <div className="p-4 border rounded-lg bg-secondary/50">
@@ -150,11 +168,11 @@ export default function HomePage() {
           
           <Button 
             onClick={handleFindRecipes} 
-            disabled={isContextLoading} // Updated from isLoadingRecipes
+            disabled={isContextLoading}
             size="lg" 
             className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-base py-3 shadow-md hover:shadow-lg transition-shadow"
           >
-            {isContextLoading ? ( // Updated from isLoadingRecipes
+            {isContextLoading ? (
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />
             ) : (
               <Zap className="mr-2 h-5 w-5" />
@@ -172,7 +190,7 @@ export default function HomePage() {
         </Alert>
       )}
 
-      {recommendedRecipes.length === 0 && !isContextLoading && !error && combinedIngredients.length > 0 && ( // Updated from isLoadingRecipes
+      {recommendedRecipes.length === 0 && !isContextLoading && !error && combinedIngredientNamesForPreview.length > 0 && (
          <Alert className="shadow-md bg-card">
             <Info className="h-4 w-4" />
             <AlertTitle>Ready to Search?</AlertTitle>
@@ -199,5 +217,3 @@ export default function HomePage() {
     </div>
   );
 }
-
-    
