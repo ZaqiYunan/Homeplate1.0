@@ -6,7 +6,7 @@ import { HomeplateLogo } from '@/components/icons/HomeplateLogo';
 import { Button } from '@/components/ui/button';
 import { useRouter, usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { ChefHat, Warehouse, LogIn, LogOut, UserPlus, UserCircle2, LayoutDashboard } from 'lucide-react';
+import { ChefHat, Warehouse, LogIn, LogOut, UserPlus, UserCircle2, LayoutDashboard, HeartPulse } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { auth } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
@@ -30,6 +30,7 @@ export function Header() {
     { href: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} />, protected: true },
     { href: '/', label: 'Recipe Finder', icon: <ChefHat size={18} />, protected: true },
     { href: '/storage', label: 'Storage', icon: <Warehouse size={18} />, protected: true },
+    { href: '/nutrition', label: 'Nutrition', icon: <HeartPulse size={18} />, protected: true },
   ];
 
   const handleLogout = async () => {
