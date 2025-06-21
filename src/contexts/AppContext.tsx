@@ -6,7 +6,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import type { Recipe, StoredIngredientItem, IngredientCategory, StorageLocation } from '@/lib/types';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from './AuthContext';
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, where, writeBatch } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, getDoc, setDoc } from 'firebase/firestore';
 import { app } from '@/lib/firebase';
 import { predictExpiry } from "@/ai/flows/predict-expiry-flow";
 import { format } from "date-fns";
@@ -115,6 +115,55 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [recipeRatings, isMounted]);
 
+  const togglePreferredIngredient = useCallback(async (ingredientName: string) => {
+    if (!user) {
+      toast({ title: "Not Logged In", description: "Please log in to update favorite ingredients.", variant: "destructive" });
+      return;
+    }
+    const lowerCaseIngredient = ingredientName.toLowerCase().trim();
+    let newFavoriteIngredients: string[];
+    const isCurrentlyPreferred = preferredIngredients.map(i => i.toLowerCase()).includes(lowerCaseIngredient);
+
+    if (isCurrentlyPreferred) {
+      newFavoriteIngredients = preferredIngredients.filter(i => i.toLowerCase() !== lowerCaseIngredient);
+    } else {
+      newFavoriteIngredients = [...preferredIngredients, ingredientName.trim()];
+    }
+    
+    setIsContextLoading(true);
+    const favoritesRef = getUserFavoritesRef(user.uid);
+    try {
+      await setDoc(favoritesRef, { ingredients: newFavoriteIngredients });
+      setPreferredIngredients(newFavoriteIngredients);
+      toast({ title: "Favorite Ingredients Updated", description: `AI preferences updated based on your favorites.` });
+
+    } catch (error) {
+      console.error("Error toggling preferred ingredient:", error);
+      toast({ title: "Error", description: "Could not update favorite ingredients.", variant: "destructive" });
+    } finally {
+      setIsContextLoading(false);
+    }
+  }, [user, preferredIngredients, toast]);
+
+  const clearPreferredIngredients = useCallback(async () => {
+    if (!user) {
+      toast({ title: "Not Logged In", description: "Please log in to clear favorite ingredients.", variant: "destructive" });
+      return;
+    }
+    setIsContextLoading(true);
+    const favoritesRef = getUserFavoritesRef(user.uid);
+    try {
+      await setDoc(favoritesRef, { ingredients: [] });
+      setPreferredIngredients([]);
+      toast({ title: "Favorites Cleared", description: "All favorite ingredients removed. AI preferences reset."});
+    } catch (error) {
+      console.error("Error clearing preferred ingredients:", error);
+      toast({ title: "Error", description: "Could not clear favorite ingredients in the cloud.", variant: "destructive" });
+    } finally {
+      setIsContextLoading(false);
+    }
+  }, [user, toast]);
+
   const addStoredIngredient = useCallback(async (item: Omit<StoredIngredientItem, 'id' | 'expiryDate'>): Promise<boolean> => {
     if (!user) {
       toast({ title: "Not Logged In", description: "Please log in to save ingredients.", variant: "destructive" });
@@ -182,55 +231,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setIsContextLoading(false);
     }
   }, [user, storedIngredients, preferredIngredients, toast, togglePreferredIngredient]);
-
-  const togglePreferredIngredient = useCallback(async (ingredientName: string) => {
-    if (!user) {
-      toast({ title: "Not Logged In", description: "Please log in to update favorite ingredients.", variant: "destructive" });
-      return;
-    }
-    const lowerCaseIngredient = ingredientName.toLowerCase().trim();
-    let newFavoriteIngredients: string[];
-    const isCurrentlyPreferred = preferredIngredients.map(i => i.toLowerCase()).includes(lowerCaseIngredient);
-
-    if (isCurrentlyPreferred) {
-      newFavoriteIngredients = preferredIngredients.filter(i => i.toLowerCase() !== lowerCaseIngredient);
-    } else {
-      newFavoriteIngredients = [...preferredIngredients, ingredientName.trim()];
-    }
-    
-    setIsContextLoading(true);
-    const favoritesRef = getUserFavoritesRef(user.uid);
-    try {
-      await setDoc(favoritesRef, { ingredients: newFavoriteIngredients });
-      setPreferredIngredients(newFavoriteIngredients);
-      toast({ title: "Favorite Ingredients Updated", description: `AI preferences updated based on your favorites.` });
-
-    } catch (error) {
-      console.error("Error toggling preferred ingredient:", error);
-      toast({ title: "Error", description: "Could not update favorite ingredients.", variant: "destructive" });
-    } finally {
-      setIsContextLoading(false);
-    }
-  }, [user, preferredIngredients, toast]);
-
-  const clearPreferredIngredients = useCallback(async () => {
-    if (!user) {
-      toast({ title: "Not Logged In", description: "Please log in to clear favorite ingredients.", variant: "destructive" });
-      return;
-    }
-    setIsContextLoading(true);
-    const favoritesRef = getUserFavoritesRef(user.uid);
-    try {
-      await setDoc(favoritesRef, { ingredients: [] });
-      setPreferredIngredients([]);
-      toast({ title: "Favorites Cleared", description: "All favorite ingredients removed. AI preferences reset."});
-    } catch (error) {
-      console.error("Error clearing preferred ingredients:", error);
-      toast({ title: "Error", description: "Could not clear favorite ingredients in the cloud.", variant: "destructive" });
-    } finally {
-      setIsContextLoading(false);
-    }
-  }, [user, toast]);
 
   const clearRecommendedRecipes = useCallback(() => {
     setRecommendedRecipes([]);
