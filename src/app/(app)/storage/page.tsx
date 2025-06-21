@@ -33,8 +33,7 @@ const locationColors: Record<StorageLocation, string> = {
   pantry: "bg-orange-200 text-orange-800",
   refrigerator: "bg-cyan-200 text-cyan-800",
   freezer: "bg-sky-200 text-sky-800",
-  unknown: "bg-gray-200 text-gray-800",
-}
+};
 
 const getExpiryBadgeVariant = (expiryDate?: string): { variant: "default" | "secondary" | "destructive" | "outline", text: string } => {
   if (!expiryDate) return { variant: "secondary", text: "N/A" };
