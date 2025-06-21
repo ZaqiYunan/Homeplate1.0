@@ -2,14 +2,13 @@
 "use client";
 
 import React from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAppContext } from '@/contexts/AppContext';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Trash2, Loader2, BarChart, ChefHat } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, BarChart, ChefHat, AlertTriangle } from 'lucide-react';
 import { format, differenceInDays, parseISO } from 'date-fns';
 import type { StoredIngredientItem, StorageLocation, IngredientCategory } from '@/lib/types';
 import {
@@ -18,6 +17,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const categoryColors: Record<IngredientCategory, string> = {
   vegetable: "bg-green-200 text-green-800",
@@ -62,6 +62,12 @@ export default function StoragePage() {
       await removeStoredIngredient(id);
     }
   };
+
+  const expiringSoonCount = storedIngredients.filter(item => {
+    if (!item.expiryDate) return false;
+    const daysLeft = differenceInDays(parseISO(item.expiryDate), new Date());
+    return daysLeft <= 3;
+  }).length;
   
   return (
     <div className="space-y-6">
@@ -79,6 +85,16 @@ export default function StoragePage() {
           </Button>
         </div>
       </div>
+
+      {expiringSoonCount > 0 && (
+        <Alert variant="destructive" className="shadow-md">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Expiration Warning!</AlertTitle>
+          <AlertDescription>
+            You have <strong>{expiringSoonCount}</strong> item(s) that are either expired or expiring within the next 3 days. Please check your inventory below.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card className="shadow-lg">
         <CardContent className="pt-6">
