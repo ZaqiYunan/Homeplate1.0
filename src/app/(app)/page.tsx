@@ -3,21 +3,19 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '@/contexts/AppContext';
-import { IngredientForm } from '@/components/IngredientForm';
-import { IngredientPreview } from '@/components/IngredientPreview';
 import { RecipeCard } from '@/components/RecipeCard';
 import { Button } from '@/components/ui/button';
 import { recommendRecipes } from '@/ai/flows/recommend-recipes';
-import { Loader2, AlertTriangle, Info, Zap } from 'lucide-react';
+import { Loader2, AlertTriangle, Info, Zap, ChefHat } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import type { StorageLocation } from '@/lib/types'; // For IngredientForm, though it internally handles this
+import { useRouter } from 'next/navigation';
 
 export default function HomePage() {
   const {
-    storedIngredients, // Now StoredIngredientItem[]
+    storedIngredients,
     preferredIngredients,
     recommendedRecipes,
     setRecommendedRecipes,
@@ -25,50 +23,22 @@ export default function HomePage() {
     setIsContextLoading,
     isMounted,
     clearRecommendedRecipes,
-    addStoredIngredient, // Added for IngredientPreview direct add
   } = useAppContext();
-  const [temporaryIngredients, setTemporaryIngredients] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
-
-  const handleAddTemporaryIngredient = (ingredient: string) => {
-    const lowerCaseIngredient = ingredient.toLowerCase().trim();
-    const allCurrentIngredientNames = [
-      ...temporaryIngredients.map(i => i.toLowerCase()),
-      ...storedIngredients.map(item => item.name.toLowerCase())
-    ];
-
-    if (lowerCaseIngredient && !allCurrentIngredientNames.includes(lowerCaseIngredient)) {
-      setTemporaryIngredients(prev => [...prev, ingredient.trim()]);
-    } else {
-      toast({
-        title: "Duplicate Ingredient",
-        description: `${ingredient} is already in your list.`,
-        variant: "default",
-      });
-    }
-  };
-
-  const handleRemoveTemporaryIngredient = (ingredient: string) => {
-    setTemporaryIngredients(prev => prev.filter(i => i.toLowerCase() !== ingredient.toLowerCase()));
-  };
-  
-  const handleClearTemporaryIngredients = () => {
-    setTemporaryIngredients([]);
-  }
+  const router = useRouter();
 
   const handleFindRecipes = async () => {
     setError(null);
     clearRecommendedRecipes();
     
     const storedIngredientNames = storedIngredients.map(item => item.name.trim());
-    const allIngredientNames = [...new Set([...storedIngredientNames, ...temporaryIngredients].map(i => i.trim()).filter(Boolean))];
-
-    if (allIngredientNames.length === 0) {
-      setError("Please add some ingredients to find recipes.");
+    
+    if (storedIngredientNames.length === 0) {
+      setError("Please add some ingredients to your storage to find recipes.");
       toast({
         title: "Missing Ingredients",
-        description: "Add ingredients before searching for recipes.",
+        description: "Add ingredients via the Storage page before searching for recipes.",
         variant: "destructive",
       });
       return;
@@ -77,7 +47,7 @@ export default function HomePage() {
     setIsContextLoading(true);
     try {
       const result = await recommendRecipes({
-        ingredients: allIngredientNames,
+        ingredients: storedIngredientNames,
         preferredIngredients: preferredIngredients.length > 0 ? preferredIngredients : undefined,
         numRecipes: 6, 
       });
@@ -85,7 +55,7 @@ export default function HomePage() {
       if (result.recipes.length === 0) {
         toast({
             title: "No Recipes Found",
-            description: "Try adding more or different ingredients.",
+            description: "Try adding more or different ingredients to your storage.",
         });
       } else {
          toast({
@@ -115,12 +85,7 @@ export default function HomePage() {
     );
   }
 
-  const combinedIngredientNamesForPreview = [
-    ...new Set([
-      ...storedIngredients.map(item => item.name), 
-      ...temporaryIngredients
-    ])
-  ];
+  const storedIngredientNames = storedIngredients.map(item => item.name);
 
   return (
     <div className="space-y-8">
@@ -135,29 +100,36 @@ export default function HomePage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <IngredientPreview
-            title="Your Current Ingredients"
-            description="Ingredients from your pantry (synced) and temporary additions for this search."
-            ingredients={combinedIngredientNamesForPreview}
-            temporaryIngredients={temporaryIngredients}
-            storedIngredients={storedIngredients.map(item => item.name)}
-            onRemoveTemporaryIngredient={handleRemoveTemporaryIngredient}
-            maxHeight="150px"
-            showClearAll={temporaryIngredients.length > 0}
-            onClearAll={handleClearTemporaryIngredients}
-          />
-          {/* The main IngredientForm on this page adds to temporaryIngredients */}
-          {/* To add directly to pantry, user goes to /ingredients page */}
-          <IngredientForm
-            onAddIngredient={(name, _location) => handleAddTemporaryIngredient(name)} // Location ignored for temporary
-            placeholder="Add temporary ingredient (e.g., fresh basil)"
-            buttonText="Add for this Search"
-          />
-
-
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Using Ingredients From Your Storage</CardTitle>
+              <CardDescription>
+                {storedIngredientNames.length > 0 
+                  ? "We'll find recipes based on the items you've saved." 
+                  : "Your storage is empty. Add items to find recipes."
+                }
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {storedIngredientNames.length > 0 ? (
+                <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto p-1 rounded-md bg-muted/50">
+                  {storedIngredientNames.map(name => (
+                    <span key={name} className="text-sm px-3 py-1 bg-secondary text-secondary-foreground rounded-full shadow-sm">{name}</span>
+                  ))}
+                </div>
+              ): (
+                <div className="text-center py-4">
+                  <ChefHat size={32} className="mx-auto text-muted-foreground" />
+                  <p className="mt-2 text-sm text-muted-foreground">No ingredients yet.</p>
+                  <Button variant="secondary" size="sm" className="mt-2" onClick={() => router.push('/storage/add')}>Add an Item</Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          
           {preferredIngredients.length > 0 && (
             <div className="p-4 border rounded-lg bg-secondary/50">
-              <h3 className="text-sm font-medium text-secondary-foreground mb-1">Prioritizing (from your account's favorites):</h3>
+              <h3 className="text-sm font-medium text-secondary-foreground mb-1">Prioritizing favorites from your account:</h3>
               <div className="flex flex-wrap gap-1">
                 {preferredIngredients.map(pi => (
                   <span key={pi} className="text-xs px-2 py-0.5 bg-primary text-primary-foreground rounded-full">{pi}</span>
@@ -168,7 +140,7 @@ export default function HomePage() {
           
           <Button 
             onClick={handleFindRecipes} 
-            disabled={isContextLoading}
+            disabled={isContextLoading || storedIngredientNames.length === 0}
             size="lg" 
             className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-base py-3 shadow-md hover:shadow-lg transition-shadow"
           >
@@ -190,7 +162,7 @@ export default function HomePage() {
         </Alert>
       )}
 
-      {recommendedRecipes.length === 0 && !isContextLoading && !error && combinedIngredientNamesForPreview.length > 0 && (
+      {recommendedRecipes.length === 0 && !isContextLoading && !error && storedIngredientNames.length > 0 && (
          <Alert className="shadow-md bg-card">
             <Info className="h-4 w-4" />
             <AlertTitle>Ready to Search?</AlertTitle>

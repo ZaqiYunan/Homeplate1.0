@@ -24,10 +24,14 @@ import {
   ArrowRight,
   HandCoins,
   Loader2,
-  Refrigerator, // Added
-  HelpCircle // Added
+  Refrigerator,
+  HelpCircle,
+  Carrot,
+  Beef,
+  Wheat,
 } from 'lucide-react';
-import type { StorageLocation } from '@/lib/types';
+import type { StorageLocation, IngredientCategory } from '@/lib/types';
+import { differenceInDays, parseISO } from 'date-fns';
 
 interface StatCardProps {
   title: string;
@@ -87,7 +91,7 @@ export default function DashboardPage() {
     return 'User';
   };
 
-  if (!isMounted || isContextLoading) {
+  if (!isMounted || isContextLoading && storedIngredients.length === 0) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -96,71 +100,46 @@ export default function DashboardPage() {
   }
   
   const totalIngredients = storedIngredients.length;
+  
+  const expiringSoonCount = storedIngredients.filter(item => {
+    if (!item.expiryDate) return false;
+    const daysLeft = differenceInDays(parseISO(item.expiryDate), new Date());
+    return daysLeft >= 0 && daysLeft <= 3;
+  }).length;
+
+  const freshItemsCount = storedIngredients.filter(item => {
+    if (!item.expiryDate) return true; // Assume fresh if no expiry date
+    return differenceInDays(parseISO(item.expiryDate), new Date()) > 3;
+  }).length;
 
   const countByLocation = (location: StorageLocation) => {
     return storedIngredients.filter(item => item.location === location).length;
   };
-
-  const pantryCount = countByLocation('pantry');
-  const refrigeratorCount = countByLocation('refrigerator');
-  const freezerCount = countByLocation('freezer');
-  const unknownCount = countByLocation('unknown');
-
+  
+  const countByCategory = (category: IngredientCategory) => {
+    return storedIngredients.filter(item => item.category === category).length;
+  }
 
   const statCardsData = [
-    { title: "Total Items", value: totalIngredients, icon: Package, trend: "", description: "Items in your pantry" },
-    { title: "Expiring Soon", value: 0, icon: Clock3, trend: "Next 3 days", description: "Items needing attention (placeholder)", trendColor: "text-orange-500" },
-    { title: "Fresh Items", value: totalIngredients, icon: LineChart, trend: "Good condition", description: "Estimated fresh items", trendColor: "text-green-500" },
-    { title: "Waste Saved (Est.)", value: "15%", icon: HandCoins, trend: "vs last month", description: "Contribution to less waste (placeholder)", trendColor: "text-purple-500" }
+    { title: "Total Items", value: totalIngredients, icon: Package, trend: "", description: "Items in your storage" },
+    { title: "Expiring Soon", value: expiringSoonCount, icon: Clock3, trend: "In the next 3 days", description: "Items needing attention", trendColor: "text-orange-500" },
+    { title: "Fresh Items", value: freshItemsCount, icon: LineChart, trend: "Good condition", description: "Estimated fresh items", trendColor: "text-green-500" },
+    { title: "Waste Saved (Est.)", value: "0%", icon: HandCoins, trend: "Feature coming soon", description: "Contribution to less waste", trendColor: "text-purple-500" }
   ];
 
   const storageOverviewData = [
-    { name: "Pantry", count: pantryCount, icon: Archive, iconColor: "text-orange-500" },
-    { name: "Refrigerator", count: refrigeratorCount, icon: Refrigerator, iconColor: "text-blue-500" },
-    { name: "Freezer", count: freezerCount, icon: Snowflake, iconColor: "text-sky-500" },
+    { name: "Pantry", count: countByLocation('pantry'), icon: Archive, iconColor: "text-orange-500" },
+    { name: "Refrigerator", count: countByLocation('refrigerator'), icon: Refrigerator, iconColor: "text-blue-500" },
+    { name: "Freezer", count: countByLocation('freezer'), icon: Snowflake, iconColor: "text-sky-500" },
   ];
-  if (unknownCount > 0) {
-    storageOverviewData.push({ name: "Unknown Location", count: unknownCount, icon: HelpCircle, iconColor: "text-gray-500" });
-  }
-
-
-  let proteinCount, vegetablesCount, grainsCount;
-  if (totalIngredients === 0) {
-    proteinCount = 0;
-    vegetablesCount = 0;
-    grainsCount = 0;
-  } else if (totalIngredients === 1) {
-    proteinCount = 1;
-    vegetablesCount = 0;
-    grainsCount = 0;
-  } else if (totalIngredients === 2) {
-    proteinCount = 1;
-    vegetablesCount = 1;
-    grainsCount = 0;
-  } else if (totalIngredients === 3) {
-    proteinCount = 1;
-    vegetablesCount = 1;
-    grainsCount = 1;
-  } else if (totalIngredients === 4) {
-    proteinCount = 2;
-    vegetablesCount = 1;
-    grainsCount = 1;
-  } else { 
-    proteinCount = Math.ceil(totalIngredients * 0.4); // Example distribution
-    vegetablesCount = Math.ceil(totalIngredients * 0.4);
-    grainsCount = Math.max(1, totalIngredients - proteinCount - vegetablesCount); 
-    if (totalIngredients >= 5) { // Cap if desired
-        proteinCount = Math.min(proteinCount, 2 + Math.floor((totalIngredients-5)/3));
-        vegetablesCount = Math.min(vegetablesCount, 2 + Math.floor((totalIngredients-5)/3));
-        grainsCount = Math.min(grainsCount, 1 + Math.floor((totalIngredients-5)/3));
-    }
-  }
 
   const topCategoriesData = [
-    { name: "Protein", count: proteinCount, color: "hsl(var(--chart-2))" }, 
-    { name: "Vegetables", count: vegetablesCount, color: "hsl(var(--chart-3))" },
-    { name: "Grains", count: grainsCount, color: "hsl(var(--chart-5))" }, 
-  ].filter(cat => cat.count > 0); 
+    { name: "Protein", count: countByCategory('protein'), color: "hsl(var(--chart-2))" }, 
+    { name: "Vegetable", count: countByCategory('vegetable'), color: "hsl(var(--chart-3))" },
+    { name: "Grain", count: countByCategory('grain'), color: "hsl(var(--chart-5))" },
+    { name: "Fruit", count: countByCategory('fruit'), color: "hsl(var(--chart-1))" },
+    { name: "Dairy", count: countByCategory('dairy'), color: "hsl(var(--chart-4))" },
+  ].filter(cat => cat.count > 0).sort((a,b) => b.count - a.count).slice(0,3);
 
 
   return (
@@ -187,9 +166,19 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col items-center justify-center text-center py-10">
-            <ShieldCheck className="h-16 w-16 text-green-500 mb-4" />
-            <p className="text-lg font-medium text-foreground">All items are fresh!</p>
-            <p className="text-sm text-muted-foreground">No items expiring in the next 3 days (placeholder).</p>
+            {expiringSoonCount > 0 ? (
+                <>
+                    <ShieldAlert className="h-16 w-16 text-orange-500 mb-4" />
+                    <p className="text-lg font-medium text-foreground">{expiringSoonCount} item(s) expiring soon!</p>
+                    <p className="text-sm text-muted-foreground">Check your storage list for details.</p>
+                </>
+            ) : (
+                <>
+                    <ShieldCheck className="h-16 w-16 text-green-500 mb-4" />
+                    <p className="text-lg font-medium text-foreground">All items are fresh!</p>
+                    <p className="text-sm text-muted-foreground">No items expiring in the next 3 days.</p>
+                </>
+            )}
           </CardContent>
         </Card>
 
@@ -199,12 +188,12 @@ export default function DashboardPage() {
               <CardTitle className="text-xl font-semibold text-primary">Storage Overview</CardTitle>
             </CardHeader>
             <CardContent>
-              {storageOverviewData.map(item => (
+              {storageOverviewData.filter(item => item.count > 0).length > 0 ? storageOverviewData.map(item => (
                 <React.Fragment key={item.name}>
                   <OverviewItem {...item} />
                   <Separator className="last:hidden" />
                 </React.Fragment>
-              ))}
+              )) : <p className="text-sm text-muted-foreground italic">No items in storage yet.</p>}
             </CardContent>
           </Card>
 
@@ -235,9 +224,9 @@ export default function DashboardPage() {
               <Button 
                 variant="secondary" 
                 className="w-full justify-start text-primary-foreground bg-primary-foreground/20 hover:bg-primary-foreground/30"
-                onClick={() => router.push('/ingredients')}
+                onClick={() => router.push('/storage/add')}
               >
-                <PlusCircle className="mr-2 h-5 w-5" /> Add New Ingredient
+                <PlusCircle className="mr-2 h-5 w-5" /> Add New Item
               </Button>
               <Button 
                 variant="secondary" 
@@ -248,7 +237,7 @@ export default function DashboardPage() {
                <Button 
                 variant="secondary" 
                 className="w-full justify-start text-primary-foreground bg-primary-foreground/20 hover:bg-primary-foreground/30"
-                onClick={() => router.push('/ingredients')}
+                onClick={() => router.push('/storage')}
               >
                 <ArrowRight className="mr-2 h-5 w-5" /> View Full Inventory
               </Button>

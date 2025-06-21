@@ -6,7 +6,7 @@ import { HomeplateLogo } from '@/components/icons/HomeplateLogo';
 import { Button } from '@/components/ui/button';
 import { useRouter, usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { ChefHat, LucideListChecks, LogIn, LogOut, UserPlus, UserCircle2, LayoutDashboard } from 'lucide-react';
+import { ChefHat, Warehouse, LogIn, LogOut, UserPlus, UserCircle2, LayoutDashboard } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { auth } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
@@ -29,7 +29,7 @@ export function Header() {
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} />, protected: true },
     { href: '/', label: 'Recipe Finder', icon: <ChefHat size={18} />, protected: true },
-    { href: '/ingredients', label: 'My Ingredients', icon: <LucideListChecks size={18} />, protected: true },
+    { href: '/storage', label: 'Storage', icon: <Warehouse size={18} />, protected: true },
   ];
 
   const handleLogout = async () => {
@@ -59,7 +59,7 @@ export function Header() {
               onClick={() => router.push(item.href)}
               className={cn(
                 "text-sm font-medium transition-colors hover:text-accent-foreground hover:bg-accent/80",
-                pathname === item.href ? "bg-accent text-accent-foreground" : "text-foreground/70",
+                pathname.startsWith(item.href) && item.href !== '/' || pathname === item.href ? "bg-accent text-accent-foreground" : "text-foreground/70",
                 "sm:px-3 px-2 py-2 flex items-center gap-1.5 h-9 sm:h-10"
               )}
             >

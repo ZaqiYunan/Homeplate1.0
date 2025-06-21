@@ -3,28 +3,32 @@
 
 import type { ReactNode } from "react";
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { Recipe, StoredIngredientItem, StorageLocation } from '@/lib/types';
-import { preSelectIngredients } from '@/ai/flows/pre-select-ingredients-flow';
+import type { Recipe, StoredIngredientItem, IngredientCategory, StorageLocation } from '@/lib/types';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from './AuthContext';
-import { getFirestore, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, where, writeBatch } from 'firebase/firestore';
 import { app } from '@/lib/firebase';
+import { predictExpiry } from "@/ai/flows/predict-expiry-flow";
+import { format } from "date-fns";
 
 const db = getFirestore(app);
 
 interface AppContextType {
   storedIngredients: StoredIngredientItem[];
-  addStoredIngredient: (name: string, location: StorageLocation) => Promise<void>;
-  removeStoredIngredient: (name: string) => Promise<void>;
-  updateIngredientLocation: (name: string, newLocation: StorageLocation) => Promise<void>;
+  addStoredIngredient: (item: Omit<StoredIngredientItem, 'id' | 'expiryDate'>) => Promise<boolean>;
+  removeStoredIngredient: (id: string) => Promise<void>;
+  
   preferredIngredients: string[];
   togglePreferredIngredient: (ingredient: string) => Promise<void>;
   clearPreferredIngredients: () => Promise<void>;
+  
   recommendedRecipes: Recipe[];
   setRecommendedRecipes: (recipes: Recipe[]) => void;
   clearRecommendedRecipes: () => void;
+  
   recipeRatings: Record<string, number>;
   rateRecipe: (recipeName: string, rating: number) => void;
+  
   isContextLoading: boolean;
   setIsContextLoading: (loading: boolean) => void;
   isMounted: boolean;
@@ -36,8 +40,12 @@ const LOCAL_STORAGE_KEYS = {
   RECIPE_RATINGS: 'homeplate_recipeRatings',
 };
 
-const getUserIngredientsDataRef = (userId: string) => {
-  return doc(db, 'users', userId, 'ingredients', 'data');
+const getUserStorageCollection = (userId: string) => {
+  return collection(db, 'users', userId, 'storage');
+};
+
+const getUserFavoritesRef = (userId: string) => {
+  return doc(db, 'users', userId, 'preferences', 'favorites');
 };
 
 
@@ -62,47 +70,44 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [toast]);
 
+  const fetchUserIngredients = useCallback(async (userId: string) => {
+    setIsContextLoading(true);
+    const storageCollection = getUserStorageCollection(userId);
+    const favoritesRef = getUserFavoritesRef(userId);
+    try {
+      const [storageSnapshot, favoritesSnap] = await Promise.all([
+        getDocs(storageCollection),
+        getDoc(favoritesRef)
+      ]);
+      
+      const ingredients = storageSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as StoredIngredientItem));
+      setStoredIngredients(ingredients);
+
+      if (favoritesSnap.exists()) {
+        setPreferredIngredients(favoritesSnap.data().ingredients || []);
+      } else {
+        setPreferredIngredients([]);
+      }
+
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+      toast({ title: "Error", description: "Could not load your ingredients from the cloud.", variant: "destructive" });
+    } finally {
+      setIsContextLoading(false);
+    }
+  }, [toast]);
+
   useEffect(() => {
     if (isMounted && user) {
-      const fetchUserIngredients = async () => {
-        setIsContextLoading(true);
-        const ingredientsDataRef = getUserIngredientsDataRef(user.uid);
-        try {
-          const docSnap = await getDoc(ingredientsDataRef);
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            // Basic migration: if pantryIngredients are strings, convert to StoredIngredientItem[]
-            let pantryItems: StoredIngredientItem[] = [];
-            if (Array.isArray(data.pantryIngredients)) {
-              if (data.pantryIngredients.length > 0 && typeof data.pantryIngredients[0] === 'string') {
-                pantryItems = data.pantryIngredients.map((name: string) => ({ name, location: 'pantry' as StorageLocation }));
-                // Optionally, update Firestore with the new structure here if desired
-                // await setDoc(ingredientsDataRef, { pantryIngredients: pantryItems }, { merge: true });
-                 toast({ title: "Storage Updated", description: "Your ingredients have been defaulted to 'pantry'. You can update their locations." });
-              } else {
-                pantryItems = data.pantryIngredients;
-              }
-            }
-            setStoredIngredients(pantryItems);
-            setPreferredIngredients(data.favoriteIngredients || []);
-          } else {
-            setStoredIngredients([]);
-            setPreferredIngredients([]);
-            await setDoc(ingredientsDataRef, { pantryIngredients: [], favoriteIngredients: [] });
-          }
-        } catch (error) {
-          console.error("Error fetching user ingredients:", error);
-          toast({ title: "Error", description: "Could not load your ingredients from the cloud.", variant: "destructive" });
-        } finally {
-          setIsContextLoading(false);
-        }
-      };
-      fetchUserIngredients();
+      fetchUserIngredients(user.uid);
     } else if (isMounted && !user) {
       setStoredIngredients([]);
       setPreferredIngredients([]);
     }
-  }, [isMounted, user, toast]);
+  }, [isMounted, user, fetchUserIngredients]);
   
   useEffect(() => {
     if (isMounted) {
@@ -110,85 +115,73 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [recipeRatings, isMounted]);
 
-  const addStoredIngredient = useCallback(async (name: string, location: StorageLocation) => {
+  const addStoredIngredient = useCallback(async (item: Omit<StoredIngredientItem, 'id' | 'expiryDate'>): Promise<boolean> => {
     if (!user) {
       toast({ title: "Not Logged In", description: "Please log in to save ingredients.", variant: "destructive" });
-      return;
+      return false;
     }
-    const lowerCaseName = name.toLowerCase().trim();
-    if (lowerCaseName && !storedIngredients.some(i => i.name.toLowerCase() === lowerCaseName)) {
-      const newItem: StoredIngredientItem = { name: name.trim(), location };
-      const newPantryIngredients = [...storedIngredients, newItem];
-      setIsContextLoading(true);
-      try {
-        const ingredientsDataRef = getUserIngredientsDataRef(user.uid);
-        await setDoc(ingredientsDataRef, { pantryIngredients: newPantryIngredients }, { merge: true });
-        setStoredIngredients(newPantryIngredients);
-        toast({ title: "Storage Updated", description: `${name} added to your ${location}.` });
-      } catch (error) {
-        console.error("Error adding stored ingredient to Firestore:", error);
-        toast({ title: "Error", description: "Could not save ingredient to the cloud.", variant: "destructive" });
-      } finally {
-        setIsContextLoading(false);
-      }
-    } else if (storedIngredients.some(i => i.name.toLowerCase() === lowerCaseName)) {
-        toast({ title: "Duplicate Ingredient", description: `${name} is already in your storage.`});
-    }
-  }, [user, storedIngredients, toast]);
+    setIsContextLoading(true);
+    try {
+      // Step 1: Call AI to predict expiry date
+      const expiryPrediction = await predictExpiry({
+        name: item.name,
+        category: item.category,
+        location: item.location,
+        purchaseDate: format(new Date(item.purchaseDate), 'yyyy-MM-dd'),
+      });
 
-  const removeStoredIngredient = useCallback(async (name: string) => {
+      // Step 2: Add the new item to Firestore
+      const storageCollection = getUserStorageCollection(user.uid);
+      const docRef = await addDoc(storageCollection, {
+        ...item,
+        expiryDate: expiryPrediction.expiryDate,
+      });
+
+      // Step 3: Update local state
+      const newItem: StoredIngredientItem = {
+        id: docRef.id,
+        ...item,
+        expiryDate: expiryPrediction.expiryDate,
+      };
+      setStoredIngredients(prev => [...prev, newItem]);
+      toast({ title: "Item Added", description: `${item.name} has been added to your storage.` });
+      return true;
+
+    } catch (error) {
+      console.error("Error adding stored ingredient:", error);
+      toast({ title: "Error", description: `Could not save item. ${error instanceof Error ? error.message : ''}`, variant: "destructive" });
+      return false;
+    } finally {
+      setIsContextLoading(false);
+    }
+  }, [user, toast]);
+
+  const removeStoredIngredient = useCallback(async (id: string) => {
     if (!user) {
       toast({ title: "Not Logged In", description: "Please log in to update ingredients.", variant: "destructive" });
       return;
     }
-    const newPantryIngredients = storedIngredients.filter(i => i.name.toLowerCase() !== name.toLowerCase());
+    const itemToRemove = storedIngredients.find(i => i.id === id);
+    if (!itemToRemove) return;
+
     setIsContextLoading(true);
     try {
-      const ingredientsDataRef = getUserIngredientsDataRef(user.uid);
-      await setDoc(ingredientsDataRef, { pantryIngredients: newPantryIngredients }, { merge: true });
-      setStoredIngredients(newPantryIngredients);
+      await deleteDoc(doc(db, 'users', user.uid, 'storage', id));
+      setStoredIngredients(prev => prev.filter(i => i.id !== id));
+      
       // Also remove from preferred if it was there
-      const newPreferred = preferredIngredients.filter(p => p.toLowerCase() !== name.toLowerCase());
-      if (newPreferred.length !== preferredIngredients.length) {
-        await setDoc(ingredientsDataRef, { favoriteIngredients: newPreferred }, { merge: true });
-        setPreferredIngredients(newPreferred);
+      if (preferredIngredients.map(i => i.toLowerCase()).includes(itemToRemove.name.toLowerCase())) {
+        await togglePreferredIngredient(itemToRemove.name);
       }
-      toast({ title: "Storage Updated", description: `${name} removed.` });
+      
+      toast({ title: "Item Removed", description: `${itemToRemove.name} removed from your storage.` });
     } catch (error) {
       console.error("Error removing stored ingredient from Firestore:", error);
-      toast({ title: "Error", description: "Could not update storage in the cloud.", variant: "destructive" });
+      toast({ title: "Error", description: "Could not remove item from the cloud.", variant: "destructive" });
     } finally {
       setIsContextLoading(false);
     }
-  }, [user, storedIngredients, preferredIngredients, toast]);
-
-  const updateIngredientLocation = useCallback(async (name: string, newLocation: StorageLocation) => {
-    if (!user) {
-      toast({ title: "Not Logged In", description: "Please log in to update ingredient locations.", variant: "destructive" });
-      return;
-    }
-    const ingredientIndex = storedIngredients.findIndex(i => i.name.toLowerCase() === name.toLowerCase());
-    if (ingredientIndex === -1) {
-      toast({ title: "Not Found", description: "Ingredient not found in your storage.", variant: "destructive" });
-      return;
-    }
-
-    const updatedIngredients = [...storedIngredients];
-    updatedIngredients[ingredientIndex] = { ...updatedIngredients[ingredientIndex], location: newLocation };
-    
-    setIsContextLoading(true);
-    try {
-      const ingredientsDataRef = getUserIngredientsDataRef(user.uid);
-      await updateDoc(ingredientsDataRef, { pantryIngredients: updatedIngredients });
-      setStoredIngredients(updatedIngredients);
-      toast({ title: "Location Updated", description: `${name} moved to ${newLocation}.` });
-    } catch (error) {
-      console.error("Error updating ingredient location in Firestore:", error);
-      toast({ title: "Error", description: "Could not update ingredient location in the cloud.", variant: "destructive" });
-    } finally {
-      setIsContextLoading(false);
-    }
-  }, [user, storedIngredients, toast]);
+  }, [user, storedIngredients, preferredIngredients, toast, togglePreferredIngredient]);
 
   const togglePreferredIngredient = useCallback(async (ingredientName: string) => {
     if (!user) {
@@ -206,19 +199,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     
     setIsContextLoading(true);
+    const favoritesRef = getUserFavoritesRef(user.uid);
     try {
-      const ingredientsDataRef = getUserIngredientsDataRef(user.uid);
-      await setDoc(ingredientsDataRef, { favoriteIngredients: newFavoriteIngredients }, { merge: true });
+      await setDoc(favoritesRef, { ingredients: newFavoriteIngredients });
       setPreferredIngredients(newFavoriteIngredients);
-      
-      if (newFavoriteIngredients.length > 0) {
-        await preSelectIngredients({ ingredients: newFavoriteIngredients });
-      }
       toast({ title: "Favorite Ingredients Updated", description: `AI preferences updated based on your favorites.` });
 
     } catch (error) {
-      console.error("Error toggling preferred ingredient or updating AI:", error);
-      toast({ title: "Error", description: "Could not update favorite ingredients or AI preferences.", variant: "destructive" });
+      console.error("Error toggling preferred ingredient:", error);
+      toast({ title: "Error", description: "Could not update favorite ingredients.", variant: "destructive" });
     } finally {
       setIsContextLoading(false);
     }
@@ -230,9 +219,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return;
     }
     setIsContextLoading(true);
+    const favoritesRef = getUserFavoritesRef(user.uid);
     try {
-      const ingredientsDataRef = getUserIngredientsDataRef(user.uid);
-      await setDoc(ingredientsDataRef, { favoriteIngredients: [] }, { merge: true });
+      await setDoc(favoritesRef, { ingredients: [] });
       setPreferredIngredients([]);
       toast({ title: "Favorites Cleared", description: "All favorite ingredients removed. AI preferences reset."});
     } catch (error) {
@@ -253,7 +242,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   return (
     <AppContext.Provider value={{
-      storedIngredients, addStoredIngredient, removeStoredIngredient, updateIngredientLocation,
+      storedIngredients, addStoredIngredient, removeStoredIngredient,
       preferredIngredients, togglePreferredIngredient, clearPreferredIngredients,
       recommendedRecipes, setRecommendedRecipes, clearRecommendedRecipes,
       recipeRatings, rateRecipe,
