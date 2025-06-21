@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, fetchSignInMethodsForEmail } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,11 +21,43 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [emailWarning, setEmailWarning] = useState<string | null>(null);
   const router = useRouter();
   const { toast } = useToast();
 
+  const handleEmailBlur = async () => {
+    if (!email) {
+      setEmailWarning(null);
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setEmailWarning("Please enter a valid email address.");
+      return;
+    }
+
+    try {
+      const methods = await fetchSignInMethodsForEmail(auth, email);
+      if (methods.length > 0) {
+        setEmailWarning("This email is already registered. Try logging in instead.");
+      } else {
+        setEmailWarning(null);
+      }
+    } catch (error) {
+      // Don't show a warning for other firebase errors on blur, just clear it.
+      setEmailWarning(null);
+    }
+  };
+
+
   const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (emailWarning) {
+       toast({ title: 'Error', description: emailWarning, variant: 'destructive' });
+       return;
+    }
+
     if (password !== confirmPassword) {
       toast({ title: 'Error', description: 'Passwords do not match.', variant: 'destructive' });
       return;
@@ -43,6 +75,7 @@ export default function SignupPage() {
         description = 'Invalid Firebase API Key. Check your Firebase configuration.';
       } else if (error.code === 'auth/email-already-in-use') {
         description = 'This email is already in use. Try logging in or using a different email.';
+        setEmailWarning(description);
       } else {
         description = error.message || 'An unexpected error occurred. Check console or Firebase settings.';
       }
@@ -107,10 +140,14 @@ export default function SignupPage() {
               placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onBlur={handleEmailBlur}
               required
               className="bg-card"
               disabled={isLoading || isGoogleLoading}
             />
+            {emailWarning && (
+              <p className="text-sm text-destructive font-medium pt-1">{emailWarning}</p>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password (min. 6 characters)</Label>
