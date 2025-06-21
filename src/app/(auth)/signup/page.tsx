@@ -36,7 +36,6 @@ export default function SignupPage() {
       toast({ title: 'Signup Successful', description: 'Welcome to Homeplate!' });
       router.push('/');
     } catch (error: any) {
-      console.error("Email signup error:", error);
       let description = 'Please try again.';
       if (error.code === 'auth/configuration-not-found') {
         description = 'Firebase auth configuration error. Ensure Email/Password sign-in is enabled in your Firebase project console (Authentication > Sign-in method).';
@@ -64,8 +63,7 @@ export default function SignupPage() {
       await signInWithPopup(auth, provider);
       toast({ title: 'Signup Successful', description: 'Welcome!' });
       router.push('/');
-    } catch (error: any)      {
-      console.error("Google signup error:", error);
+    } catch (error: any) {
       let description = 'Could not sign up with Google. Please try again.';
        if (error.code === 'auth/popup-closed-by-user') {
         description = 'Google Sign-Up was cancelled.';

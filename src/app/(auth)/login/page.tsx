@@ -31,7 +31,6 @@ export default function LoginPage() {
       toast({ title: 'Login Successful', description: "Welcome back!" });
       router.push('/');
     } catch (error: any) {
-      console.error("Email login error:", error);
       let description = 'Please check your credentials and try again.';
       if (error.code === 'auth/configuration-not-found') {
         description = 'Firebase auth configuration error. Ensure Email/Password sign-in is enabled in your Firebase project console (Authentication > Sign-in method).';
@@ -60,7 +59,6 @@ export default function LoginPage() {
       toast({ title: 'Login Successful', description: 'Welcome!' });
       router.push('/');
     } catch (error: any) {
-      console.error("Google login error:", error);
        let description = 'Could not sign in with Google. Please try again.';
       if (error.code === 'auth/popup-closed-by-user') {
         description = 'Google Sign-In was cancelled.';
