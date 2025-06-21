@@ -2,12 +2,16 @@
 "use client";
 
 import React from 'react';
+import Image from 'next/image';
 import { useAppContext } from '@/contexts/AppContext';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from '@/components/ui/separator';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
 
 import {
   TrendingUp,
@@ -26,6 +30,12 @@ import {
   CalendarDays,
   BookUser,
   FileText,
+  Moon,
+  Sunrise,
+  Sun,
+  Cookie,
+  History,
+  ChevronRight,
 } from 'lucide-react';
 
 interface StatCardProps {
@@ -152,6 +162,41 @@ export default function NutritionPage() {
   const avgCalories = Math.round(weeklySummary.totalCalories / weeklyNutritionData.length);
   const avgProtein = Math.round(weeklySummary.totalProtein / weeklyNutritionData.length);
 
+  const recentMealsData = [
+    { name: "Mediterranean Salmon Bowl", type: "Dinner", time: "7:30 PM", calories: 485, p: 42, c: 35, f: 18, icon: Moon, hint: "salmon bowl" },
+    { name: "Greek Yogurt Parfait", type: "Breakfast", time: "8:00 AM", calories: 320, p: 18, c: 45, f: 8, icon: Sunrise, hint: "yogurt parfait" },
+    { name: "Chicken & Rice Stir Fry", type: "Lunch", time: "1:15 PM", calories: 425, p: 35, c: 48, f: 12, icon: Sun, hint: "chicken stirfry" },
+    { name: "Green Smoothie", type: "Snack", time: "3:45 PM", calories: 180, p: 8, c: 35, f: 4, icon: Cookie, hint: "green smoothie" },
+    { name: "Avocado Toast", type: "Breakfast", time: "9:00 AM", calories: 250, p: 10, c: 25, f: 15, icon: Sunrise, hint: "avocado toast" },
+    { name: "Lentil Soup", type: "Lunch", time: "1:00 PM", calories: 350, p: 20, c: 50, f: 5, icon: Sun, hint: "lentil soup" },
+  ];
+
+  const MealItem = ({ meal }: { meal: typeof recentMealsData[0] }) => (
+    <li className="flex items-center justify-between py-3">
+        <div className="flex items-center gap-4">
+            <Image
+                src={`https://placehold.co/64x64.png`}
+                alt={meal.name}
+                width={56}
+                height={56}
+                className="rounded-lg object-cover"
+                data-ai-hint={meal.hint}
+            />
+            <div className="space-y-1">
+                <p className="font-semibold text-foreground flex items-center gap-1.5"><meal.icon className="h-4 w-4 text-muted-foreground" /> {meal.name}</p>
+                <p className="text-xs text-muted-foreground">
+                    {meal.type} &middot; {meal.time} &middot; <span className="font-medium text-primary">{meal.calories} cal</span>
+                </p>
+            </div>
+        </div>
+        <div className="text-right text-xs text-muted-foreground space-y-0.5">
+            <p>P: {meal.p}g</p>
+            <p>C: {meal.c}g</p>
+            <p>F: {meal.f}g</p>
+        </div>
+    </li>
+);
+
   return (
     <div className="space-y-8">
       <div className="text-center">
@@ -170,110 +215,121 @@ export default function NutritionPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-xl font-semibold text-primary">Today's Nutrition</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-            {nutritionData.map(item => <NutritionProgress key={item.title} {...item} />)}
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
 
-        <Card className="lg:col-span-1 shadow-lg">
-          <CardHeader className="flex flex-row justify-between items-center">
-            <CardTitle className="text-xl font-semibold text-primary">Daily Goals</CardTitle>
-            <Button variant="ghost" size="icon">
-                <Settings className="h-5 w-5 text-muted-foreground" />
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-6">
-             {dailyGoalsData.map(item => <GoalProgress key={item.title} {...item} />)}
-          </CardContent>
-        </Card>
-      </div>
+        {/* Left Side (3 columns) */}
+        <div className="lg:col-span-3 space-y-6">
+           <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-xl font-semibold text-primary">Today's Nutrition</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                {nutritionData.map(item => <NutritionProgress key={item.title} {...item} />)}
+              </CardContent>
+            </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 shadow-lg">
-          <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-            <CardTitle className="text-xl font-semibold text-primary flex items-center">
-              <BarChart3 className="mr-2 h-5 w-5" />
-              Weekly Nutrition Trends
-            </CardTitle>
-            <div className="flex items-center gap-4 text-xs text-muted-foreground mt-2 sm:mt-0">
-                <div className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: 'hsl(var(--destructive))' }} /> Protein</div>
-                <div className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: 'hsl(var(--primary))' }} /> Carbs</div>
-                <div className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: 'hsl(var(--chart-2))' }} /> Fat</div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-             {weeklyNutritionData.map((item) => {
-                const totalMacros = item.protein + item.carbs + item.fat;
-                const proteinWidth = (item.protein / totalMacros) * 100;
-                const carbsWidth = (item.carbs / totalMacros) * 100;
-                const fatWidth = (item.fat / totalMacros) * 100;
-
-                return (
-                  <div key={item.day} className="grid grid-cols-[40px_1fr_80px] items-center gap-4">
-                    <div className="text-sm font-medium text-muted-foreground">{item.day}</div>
-                    <div className="w-full">
-                      <div className="w-full bg-muted rounded-full h-3.5 flex overflow-hidden">
-                        <div style={{ width: `${proteinWidth}%`, backgroundColor: 'hsl(var(--destructive))' }}></div>
-                        <div style={{ width: `${carbsWidth}%`, backgroundColor: 'hsl(var(--primary))' }}></div>
-                        <div style={{ width: `${fatWidth}%`, backgroundColor: 'hsl(var(--chart-2))' }}></div>
-                      </div>
-                      <div className="flex justify-between text-xs text-muted-foreground mt-1.5 px-1">
-                          <span>P: {item.protein}g</span>
-                          <span>C: {item.carbs}g</span>
-                          <span>F: {item.fat}g</span>
-                      </div>
-                    </div>
-                    <div className="text-sm font-bold text-primary text-right">{item.calories} cal</div>
-                  </div>
-                );
-             })}
-          </CardContent>
-           <CardFooter className="bg-muted/50 p-4 mt-4">
-              <div className="flex justify-around w-full">
-                <div className="text-center">
-                    <p className="text-sm text-muted-foreground">Avg. Calories</p>
-                    <p className="font-bold text-primary">{avgCalories}</p>
-                </div>
-                 <div className="text-center">
-                    <p className="text-sm text-muted-foreground">Avg. Protein</p>
-                    <p className="font-bold text-primary">{avgProtein}g</p>
-                </div>
-              </div>
-           </CardFooter>
-        </Card>
-        
-        <div className="lg:col-span-1 space-y-6">
             <Card className="shadow-lg">
-                <CardHeader>
-                    <CardTitle className="text-xl font-semibold text-primary flex items-center"><CalendarDays className="mr-2 h-5 w-5"/>Weekly Progress</CardTitle>
+                <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                    <CardTitle className="text-xl font-semibold text-primary flex items-center">
+                    <BarChart3 className="mr-2 h-5 w-5" />
+                    Weekly Nutrition Trends
+                    </CardTitle>
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground mt-2 sm:mt-0">
+                        <div className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: 'hsl(var(--destructive))' }} /> Protein</div>
+                        <div className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: 'hsl(var(--primary))' }} /> Carbs</div>
+                        <div className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: 'hsl(var(--chart-2))' }} /> Fat</div>
+                    </div>
                 </CardHeader>
-                <CardContent>
-                    <ul className="space-y-3">
-                        {weeklyNutritionData.map(item => (
-                            <li key={item.day} className="flex items-center justify-between text-sm">
-                                <div className="flex items-center gap-3">
-                                    <div className="bg-primary/10 text-primary font-bold h-7 w-7 flex items-center justify-center rounded-full text-xs">{item.day.slice(0,1)}</div>
-                                    <span>{item.calories} cal</span>
-                                </div>
-                                <div className="h-2 w-2 rounded-full" style={{backgroundColor: 'hsl(var(--chart-2))'}} />
-                            </li>
-                        ))}
-                    </ul>
-                     <Alert className="mt-6 bg-primary/10 border-primary/20 text-primary">
-                      <TrendingUp className="h-4 w-4 text-primary" />
-                      <AlertTitle className="font-semibold">Great progress this week!</AlertTitle>
-                      <AlertDescription>
-                        You've maintained your nutrition goals for 6 days straight.
-                      </AlertDescription>
-                    </Alert>
+                <CardContent className="space-y-6">
+                    {weeklyNutritionData.map((item) => {
+                        const totalMacros = item.protein + item.carbs + item.fat;
+                        const proteinWidth = (item.protein / totalMacros) * 100;
+                        const carbsWidth = (item.carbs / totalMacros) * 100;
+                        const fatWidth = (item.fat / totalMacros) * 100;
+
+                        return (
+                        <div key={item.day} className="grid grid-cols-[40px_1fr_80px] items-center gap-4">
+                            <div className="text-sm font-medium text-muted-foreground">{item.day}</div>
+                            <div className="w-full">
+                            <div className="w-full bg-muted rounded-full h-3.5 flex overflow-hidden">
+                                <div style={{ width: `${proteinWidth}%`, backgroundColor: 'hsl(var(--destructive))' }}></div>
+                                <div style={{ width: `${carbsWidth}%`, backgroundColor: 'hsl(var(--primary))' }}></div>
+                                <div style={{ width: `${fatWidth}%`, backgroundColor: 'hsl(var(--chart-2))' }}></div>
+                            </div>
+                            <div className="flex justify-between text-xs text-muted-foreground mt-1.5 px-1">
+                                <span>P: {item.protein}g</span>
+                                <span>C: {item.carbs}g</span>
+                                <span>F: {item.fat}g</span>
+                            </div>
+                            </div>
+                            <div className="text-sm font-bold text-primary text-right">{item.calories} cal</div>
+                        </div>
+                        );
+                    })}
+                </CardContent>
+                <CardFooter className="bg-muted/50 p-4 mt-4">
+                    <div className="flex justify-around w-full">
+                        <div className="text-center">
+                            <p className="text-sm text-muted-foreground">Avg. Calories</p>
+                            <p className="font-bold text-primary">{avgCalories}</p>
+                        </div>
+                        <div className="text-center">
+                            <p className="text-sm text-muted-foreground">Avg. Protein</p>
+                            <p className="font-bold text-primary">{avgProtein}g</p>
+                        </div>
+                    </div>
+                </CardFooter>
+            </Card>
+        </div>
+
+        {/* Right Side (2 columns) */}
+        <div className="lg:col-span-2 space-y-6">
+            <Card className="shadow-lg">
+                <CardHeader className="flex flex-row justify-between items-center">
+                    <CardTitle className="text-xl font-semibold text-primary">Daily Goals</CardTitle>
+                    <Button variant="ghost" size="icon">
+                        <Settings className="h-5 w-5 text-muted-foreground" />
+                    </Button>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    {dailyGoalsData.map(item => <GoalProgress key={item.title} {...item} />)}
                 </CardContent>
             </Card>
 
+            <Card className="shadow-lg">
+                <CardHeader>
+                    <CardTitle className="text-xl font-semibold text-primary flex items-center">
+                        <History className="mr-2 h-5 w-5"/>
+                        Recent Meals
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                    <ul className="divide-y px-6">
+                        {recentMealsData.slice(0, 4).map((meal) => <MealItem key={meal.name} meal={meal} />)}
+                    </ul>
+                </CardContent>
+                <CardFooter className="pt-4">
+                    <Sheet>
+                        <SheetTrigger asChild>
+                            <Button variant="outline" className="w-full">View All Meals</Button>
+                        </SheetTrigger>
+                        <SheetContent side="bottom" className="h-[90vh] flex flex-col">
+                            <SheetHeader className="text-left">
+                                <SheetTitle className="text-2xl font-bold text-primary">All Recent Meals</SheetTitle>
+                                <SheetDescription>
+                                    A complete log of your recently consumed meals.
+                                </SheetDescription>
+                            </SheetHeader>
+                            <ScrollArea className="flex-grow">
+                                <ul className="divide-y pr-6">
+                                    {recentMealsData.map((meal) => <MealItem key={meal.name} meal={meal} />)}
+                                </ul>
+                            </ScrollArea>
+                        </SheetContent>
+                    </Sheet>
+                </CardFooter>
+            </Card>
+            
             <Card className="shadow-lg bg-primary text-primary-foreground">
                 <CardHeader>
                     <CardTitle className="text-xl font-semibold">Quick Actions</CardTitle>
@@ -290,5 +346,3 @@ export default function NutritionPage() {
     </div>
   );
 }
-
-    
