@@ -2,7 +2,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import type { Recipe, StoredIngredientItem, MealLog, UserProfile, NutritionalGoals, NutritionalInfo } from '@/lib/types';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from './AuthContext';
@@ -81,8 +81,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Nutrition Data
   const [userProfile, setUserProfile] = useState<UserProfile>({ height: 0, weight: 0 });
   const [nutritionalGoals, setNutritionalGoals] = useState<NutritionalGoals>(DEFAULT_GOALS);
-  const [dailyIntake, setDailyIntake] = useState<NutritionalInfo>({ calories: 0, protein: 0, carbs: 0, fat: 0 });
   const [recentMeals, setRecentMeals] = useState<MealLog[]>([]);
+
+  // Derived State: Calculate daily intake from recent meals whenever they change.
+  const dailyIntake = useMemo(() => {
+    return recentMeals
+      .filter(meal => isToday(parseISO(meal.loggedAt)))
+      .reduce((acc, meal) => {
+        acc.calories += meal.calories;
+        acc.protein += meal.protein;
+        acc.carbs += meal.carbs;
+        acc.fat += meal.fat;
+        return acc;
+      }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
+  }, [recentMeals]);
   
   useEffect(() => {
     setIsMounted(true);
@@ -94,19 +106,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
   
-  const calculateDailyIntake = (meals: MealLog[]) => {
-    const todayIntake = meals
-      .filter(meal => isToday(parseISO(meal.loggedAt)))
-      .reduce((acc, meal) => {
-        acc.calories += meal.calories;
-        acc.protein += meal.protein;
-        acc.carbs += meal.carbs;
-        acc.fat += meal.fat;
-        return acc;
-      }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
-    setDailyIntake(todayIntake);
-  };
-
   const fetchUserData = useCallback(async (userId: string) => {
     setIsContextLoading(true);
     try {
@@ -131,7 +130,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       
       const meals = mealsSnap.docs.map(d => ({ id: d.id, ...d.data() } as MealLog));
       setRecentMeals(meals);
-      calculateDailyIntake(meals);
 
     } catch (error) {
       console.error("Error fetching user data:", error);
@@ -151,7 +149,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setRecommendedRecipes([]);
       setUserProfile({ height: 0, weight: 0 });
       setNutritionalGoals(DEFAULT_GOALS);
-      setDailyIntake({ calories: 0, protein: 0, carbs: 0, fat: 0 });
       setRecentMeals([]);
       setIsContextLoading(false);
     }
@@ -223,9 +220,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const docRef = await addDoc(getUserMealHistoryCollection(user.uid), mealLog);
       
       const newMeal = { ...mealLog, id: docRef.id };
-      const updatedMeals = [newMeal, ...recentMeals];
-      setRecentMeals(updatedMeals);
-      calculateDailyIntake(updatedMeals);
+      
+      // Use functional update to ensure we have the latest state
+      setRecentMeals(prevMeals => [newMeal, ...prevMeals]);
 
       toast({ title: "Meal Logged!", description: `${recipe.name} added to your daily intake.` });
     } catch (error) {
@@ -234,7 +231,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } finally {
       setIsContextLoading(false);
     }
-  }, [user, toast, recentMeals]);
+  }, [user, toast]);
 
   const updateUserProfileAndGoals = useCallback(async (profile: UserProfile) => {
     if (!user) {

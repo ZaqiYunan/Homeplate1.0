@@ -18,6 +18,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { MealLog, UserProfile } from '@/lib/types';
 import { format, isToday, parseISO } from 'date-fns';
+import { useRouter } from 'next/navigation';
 
 
 import {
@@ -151,6 +152,7 @@ export default function NutritionPage() {
   } = useAppContext();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const router = useRouter();
 
   const form = useForm<z.infer<typeof personalizeFormSchema>>({
     resolver: zodResolver(personalizeFormSchema),
@@ -285,7 +287,7 @@ export default function NutritionPage() {
                     <CardTitle className="text-xl font-semibold">Quick Actions</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                    <Button variant="secondary" className="w-full justify-start text-primary-foreground bg-primary-foreground/20 hover:bg-primary-foreground/30"><BookUser className="mr-2 h-5 w-5"/> Log a Meal</Button>
+                    <Button variant="secondary" className="w-full justify-start text-primary-foreground bg-primary-foreground/20 hover:bg-primary-foreground/30" onClick={() => router.push('/')}><BookUser className="mr-2 h-5 w-5"/> Log a Meal</Button>
                      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                         <DialogTrigger asChild>
                             <Button variant="secondary" className="w-full justify-start text-primary-foreground bg-primary-foreground/20 hover:bg-primary-foreground/30"><Target className="mr-2 h-5 w-5"/> Update Goals</Button>
