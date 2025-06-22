@@ -110,7 +110,7 @@ export function Header() {
                 variant="default"
                 onClick={() => router.push('/signup')}
                 className={cn(
-                  "text-sm font-medium transition-colors bg-accent text-accent-foreground hover:bg-accent/90",
+                  "text-sm font-medium transition-colors",
                    "sm:px-3 px-2 py-2 flex items-center gap-1.5 h-9 sm:h-10"
                 )}
               >

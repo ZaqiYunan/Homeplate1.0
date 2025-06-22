@@ -142,7 +142,7 @@ export default function HomePage() {
             onClick={handleFindRecipes} 
             disabled={isContextLoading || storedIngredientNames.length === 0}
             size="lg" 
-            className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-base py-3 shadow-md hover:shadow-lg transition-shadow"
+            className="w-full text-base py-3 shadow-md hover:shadow-lg transition-shadow"
           >
             {isContextLoading ? (
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />
