@@ -7,6 +7,32 @@ export interface Recipe {
   url?: string;
 }
 
+export interface NutritionalInfo {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
+export interface MealLog extends Recipe, NutritionalInfo {
+  id: string; // Firestore document ID
+  loggedAt: string; // ISO String
+}
+
+export interface UserProfile {
+  height: number; // in cm
+  weight: number; // in kg
+  age?: number;
+  gender?: 'male' | 'female' | 'other';
+}
+
+export interface NutritionalGoals {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
 export type StorageLocation = 'pantry' | 'refrigerator' | 'freezer';
 export type IngredientCategory = 'vegetable' | 'fruit' | 'protein' | 'dairy' | 'grain' | 'spice' | 'other';
 

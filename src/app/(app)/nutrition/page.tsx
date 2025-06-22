@@ -1,16 +1,23 @@
 
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import { useAppContext } from '@/contexts/AppContext';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import type { MealLog, UserProfile } from '@/lib/types';
+import { format, isToday, parseISO } from 'date-fns';
 
 
 import {
@@ -26,8 +33,6 @@ import {
   HeartPulse,
   Pizza,
   Loader2,
-  BarChart3,
-  CalendarDays,
   BookUser,
   FileText,
   Moon,
@@ -35,8 +40,14 @@ import {
   Sun,
   Cookie,
   History,
-  ChevronRight,
+  Info,
 } from 'lucide-react';
+
+const personalizeFormSchema = z.object({
+  height: z.coerce.number().min(50, "Height must be at least 50cm.").max(250, "Height seems too high."),
+  weight: z.coerce.number().min(20, "Weight must be at least 20kg.").max(300, "Weight seems too high."),
+});
+
 
 interface StatCardProps {
   title: string;
@@ -75,42 +86,95 @@ const NutritionProgress: React.FC<NutritionProgressProps> = ({ title, value, goa
                 </div>
                 <span className="text-sm font-medium text-foreground">{title}</span>
             </div>
-            <span className="text-sm text-muted-foreground">{value}/{goal}{unit}</span>
+            <span className="text-sm text-muted-foreground">{Math.round(value)}/{goal}{unit}</span>
         </div>
         <Progress value={(value / goal) * 100} className="h-2" />
         <div className="flex justify-between items-center mt-1">
             <span className="text-xs text-muted-foreground">{Math.round((value / goal) * 100)}% of goal</span>
-            <span className="text-xs text-muted-foreground">{goal - value} {unit} left</span>
+            <span className="text-xs text-muted-foreground">{Math.max(0, goal - Math.round(value))} {unit} left</span>
         </div>
     </div>
 );
 
-interface GoalProgressProps {
-    title: string;
-    value: number;
-    goal: number;
-    unit: string;
-    icon: React.ElementType;
+const MealItem = ({ meal }: { meal: MealLog }) => {
+    const mealIcon = () => {
+        const hour = parseISO(meal.loggedAt).getHours();
+        if (hour < 11) return Sunrise;
+        if (hour < 17) return Sun;
+        if (hour < 21) return Moon;
+        return Cookie;
+    }
+    const mealType = () => {
+        const hour = parseISO(meal.loggedAt).getHours();
+        if (hour < 11) return "Breakfast";
+        if (hour < 17) return "Lunch";
+        if (hour < 21) return "Dinner";
+        return "Snack";
+    }
+
+    return (
+        <li className="flex items-center justify-between py-3">
+            <div className="flex items-center gap-4">
+                <Image
+                    src={`https://placehold.co/64x64.png`}
+                    alt={meal.name}
+                    width={56}
+                    height={56}
+                    className="rounded-lg object-cover"
+                    data-ai-hint={meal.name.split(' ').slice(0, 2).join(' ')}
+                />
+                <div className="space-y-1">
+                    <p className="font-semibold text-foreground flex items-center gap-1.5">{React.createElement(mealIcon(), {className:"h-4 w-4 text-muted-foreground"})} {meal.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                        {mealType()} &middot; {format(parseISO(meal.loggedAt), "h:mm a")} &middot; <span className="font-medium text-primary">{meal.calories} cal</span>
+                    </p>
+                </div>
+            </div>
+            <div className="text-right text-xs text-muted-foreground space-y-0.5">
+                <p>P: {meal.protein}g</p>
+                <p>C: {meal.carbs}g</p>
+                <p>F: {meal.fat}g</p>
+            </div>
+        </li>
+    );
 }
 
-const GoalProgress: React.FC<GoalProgressProps> = ({ title, value, goal, unit, icon: Icon }) => (
-    <div>
-        <div className="flex justify-between items-center mb-1.5">
-            <div className="flex items-center gap-2">
-                 <Icon className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium text-foreground">{title}</span>
-            </div>
-            <span className="text-sm text-muted-foreground">{value}/{goal} {unit}</span>
-        </div>
-        <Progress value={(value/goal)*100} className="h-1.5" />
-    </div>
-);
-
-
 export default function NutritionPage() {
-  const { storedIngredients, isMounted, isContextLoading } = useAppContext();
+  const { 
+    isMounted, 
+    isContextLoading,
+    nutritionalGoals,
+    dailyIntake,
+    userProfile,
+    updateUserProfileAndGoals,
+    recentMeals,
+  } = useAppContext();
 
-  if (!isMounted || isContextLoading) {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  const form = useForm<z.infer<typeof personalizeFormSchema>>({
+    resolver: zodResolver(personalizeFormSchema),
+    defaultValues: {
+      height: userProfile?.height || 170,
+      weight: userProfile?.weight || 70,
+    },
+  });
+
+  React.useEffect(() => {
+    if (userProfile) {
+        form.reset({
+            height: userProfile.height || 170,
+            weight: userProfile.weight || 70,
+        });
+    }
+  }, [userProfile, form]);
+
+  async function onPersonalizeSubmit(values: z.infer<typeof personalizeFormSchema>) {
+    await updateUserProfileAndGoals(values);
+    setIsDialogOpen(false);
+  }
+
+  if (!isMounted) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -118,84 +182,19 @@ export default function NutritionPage() {
     );
   }
 
-  const vegetableServings = storedIngredients.filter(item => item.category === 'vegetable').length;
-  const fruitServings = storedIngredients.filter(item => item.category === 'fruit').length;
-
-
   const statCardsData = [
-    { title: "Calories Today", value: "1,847", icon: TrendingUp, iconColor: "text-green-500" },
-    { title: "Daily Goal", value: "92%", icon: Target, iconColor: "text-blue-500" },
-    { title: "Day Streak", value: "7", icon: Flame, iconColor: "text-orange-500" },
-    { title: "Protein Today", value: "85g", icon: Zap, iconColor: "text-purple-500" },
+    { title: "Calories Today", value: `${Math.round(dailyIntake.calories)}`, icon: TrendingUp, iconColor: "text-green-500" },
+    { title: "Daily Goal", value: `${Math.round((dailyIntake.calories / nutritionalGoals.calories) * 100)}%`, icon: Target, iconColor: "text-blue-500" },
+    { title: "Protein Today", value: `${Math.round(dailyIntake.protein)}g`, icon: Zap, iconColor: "text-purple-500" },
+    { title: "Day Streak", value: "0", icon: Flame, iconColor: "text-orange-500" },
   ];
 
   const nutritionData = [
-      { title: "Calories", value: 1847, goal: 2000, unit: "kcal", icon: Flame, iconBgColor: "bg-red-100" },
-      { title: "Protein", value: 85, goal: 100, unit: "g", icon: Zap, iconBgColor: "bg-blue-100" },
-      { title: "Carbs", value: 180, goal: 250, unit: "g", icon: Pizza, iconBgColor: "bg-yellow-100" },
-      { title: "Fat", value: 65, goal: 80, unit: "g", icon: Droplets, iconBgColor: "bg-teal-100" },
+      { title: "Calories", value: dailyIntake.calories, goal: nutritionalGoals.calories, unit: "kcal", icon: Flame, iconBgColor: "bg-red-100" },
+      { title: "Protein", value: dailyIntake.protein, goal: nutritionalGoals.protein, unit: "g", icon: Zap, iconBgColor: "bg-blue-100" },
+      { title: "Carbs", value: dailyIntake.carbs, goal: nutritionalGoals.carbs, unit: "g", icon: Pizza, iconBgColor: "bg-yellow-100" },
+      { title: "Fat", value: dailyIntake.fat, goal: nutritionalGoals.fat, unit: "g", icon: Droplets, iconBgColor: "bg-teal-100" },
   ];
-
-  const dailyGoalsData = [
-      { title: "Water Intake", value: 6, goal: 8, unit: "glasses", icon: Droplets },
-      { title: "Vegetables", value: vegetableServings, goal: 5, unit: "servings", icon: Carrot },
-      { title: "Fruits", value: fruitServings, goal: 3, unit: "servings", icon: Apple },
-      { title: "Fiber", value: 18, goal: 25, unit: "g", icon: Leaf },
-  ];
-
-  const weeklyNutritionData = [
-    { day: 'Mon', protein: 90, carbs: 220, fat: 75, calories: 1950 },
-    { day: 'Tue', protein: 95, carbs: 250, fat: 82, calories: 2100 },
-    { day: 'Wed', protein: 85, carbs: 200, fat: 68, calories: 1800 },
-    { day: 'Thu', protein: 92, carbs: 240, fat: 78, calories: 2050 },
-    { day: 'Fri', protein: 88, carbs: 210, fat: 72, calories: 1900 },
-    { day: 'Sat', protein: 98, carbs: 260, fat: 85, calories: 2200 },
-    { day: 'Sun', protein: 85, carbs: 180, fat: 65, calories: 1847 },
-  ];
-
-  const weeklySummary = weeklyNutritionData.reduce((acc, curr) => {
-      acc.totalCalories += curr.calories;
-      acc.totalProtein += curr.protein;
-      return acc;
-    }, { totalCalories: 0, totalProtein: 0 });
-
-  const avgCalories = Math.round(weeklySummary.totalCalories / weeklyNutritionData.length);
-  const avgProtein = Math.round(weeklySummary.totalProtein / weeklyNutritionData.length);
-
-  const recentMealsData = [
-    { name: "Mediterranean Salmon Bowl", type: "Dinner", time: "7:30 PM", calories: 485, p: 42, c: 35, f: 18, icon: Moon, hint: "salmon bowl" },
-    { name: "Greek Yogurt Parfait", type: "Breakfast", time: "8:00 AM", calories: 320, p: 18, c: 45, f: 8, icon: Sunrise, hint: "yogurt parfait" },
-    { name: "Chicken & Rice Stir Fry", type: "Lunch", time: "1:15 PM", calories: 425, p: 35, c: 48, f: 12, icon: Sun, hint: "chicken stirfry" },
-    { name: "Green Smoothie", type: "Snack", time: "3:45 PM", calories: 180, p: 8, c: 35, f: 4, icon: Cookie, hint: "green smoothie" },
-    { name: "Avocado Toast", type: "Breakfast", time: "9:00 AM", calories: 250, p: 10, c: 25, f: 15, icon: Sunrise, hint: "avocado toast" },
-    { name: "Lentil Soup", type: "Lunch", time: "1:00 PM", calories: 350, p: 20, c: 50, f: 5, icon: Sun, hint: "lentil soup" },
-  ];
-
-  const MealItem = ({ meal }: { meal: typeof recentMealsData[0] }) => (
-    <li className="flex items-center justify-between py-3">
-        <div className="flex items-center gap-4">
-            <Image
-                src={`https://placehold.co/64x64.png`}
-                alt={meal.name}
-                width={56}
-                height={56}
-                className="rounded-lg object-cover"
-                data-ai-hint={meal.hint}
-            />
-            <div className="space-y-1">
-                <p className="font-semibold text-foreground flex items-center gap-1.5"><meal.icon className="h-4 w-4 text-muted-foreground" /> {meal.name}</p>
-                <p className="text-xs text-muted-foreground">
-                    {meal.type} &middot; {meal.time} &middot; <span className="font-medium text-primary">{meal.calories} cal</span>
-                </p>
-            </div>
-        </div>
-        <div className="text-right text-xs text-muted-foreground space-y-0.5">
-            <p>P: {meal.p}g</p>
-            <p>C: {meal.c}g</p>
-            <p>F: {meal.f}g</p>
-        </div>
-    </li>
-);
 
   return (
     <div className="space-y-8">
@@ -209,6 +208,16 @@ export default function NutritionPage() {
         </p>
       </div>
 
+      {!userProfile.height && !isContextLoading && (
+        <Alert className="max-w-2xl mx-auto bg-primary/10 border-primary/30">
+          <Info className="h-4 w-4 text-primary" />
+          <AlertTitle className="text-primary font-semibold">Personalize Your Goals!</AlertTitle>
+          <AlertDescription>
+            Update your profile to get AI-powered nutritional goals tailored just for you.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statCardsData.map((card) => (
           <StatCard key={card.title} {...card} />
@@ -217,7 +226,6 @@ export default function NutritionPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
 
-        {/* Left Side (3 columns) */}
         <div className="lg:col-span-3 space-y-6">
            <Card className="shadow-lg">
               <CardHeader>
@@ -227,102 +235,44 @@ export default function NutritionPage() {
                 {nutritionData.map(item => <NutritionProgress key={item.title} {...item} />)}
               </CardContent>
             </Card>
-
-            <Card className="shadow-lg">
-                <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-                    <CardTitle className="text-xl font-semibold text-primary flex items-center">
-                    <BarChart3 className="mr-2 h-5 w-5" />
-                    Weekly Nutrition Trends
-                    </CardTitle>
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground mt-2 sm:mt-0">
-                        <div className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: 'hsl(var(--destructive))' }} /> Protein</div>
-                        <div className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: 'hsl(var(--primary))' }} /> Carbs</div>
-                        <div className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: 'hsl(var(--chart-2))' }} /> Fat</div>
-                    </div>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    {weeklyNutritionData.map((item) => {
-                        const totalMacros = item.protein + item.carbs + item.fat;
-                        const proteinWidth = (item.protein / totalMacros) * 100;
-                        const carbsWidth = (item.carbs / totalMacros) * 100;
-                        const fatWidth = (item.fat / totalMacros) * 100;
-
-                        return (
-                        <div key={item.day} className="grid grid-cols-[40px_1fr_80px] items-center gap-4">
-                            <div className="text-sm font-medium text-muted-foreground">{item.day}</div>
-                            <div className="w-full">
-                            <div className="w-full bg-muted rounded-full h-3.5 flex overflow-hidden">
-                                <div style={{ width: `${proteinWidth}%`, backgroundColor: 'hsl(var(--destructive))' }}></div>
-                                <div style={{ width: `${carbsWidth}%`, backgroundColor: 'hsl(var(--primary))' }}></div>
-                                <div style={{ width: `${fatWidth}%`, backgroundColor: 'hsl(var(--chart-2))' }}></div>
-                            </div>
-                            <div className="flex justify-between text-xs text-muted-foreground mt-1.5 px-1">
-                                <span>P: {item.protein}g</span>
-                                <span>C: {item.carbs}g</span>
-                                <span>F: {item.fat}g</span>
-                            </div>
-                            </div>
-                            <div className="text-sm font-bold text-primary text-right">{item.calories} cal</div>
-                        </div>
-                        );
-                    })}
-                </CardContent>
-                <CardFooter className="bg-muted/50 p-4 mt-4">
-                    <div className="flex justify-around w-full">
-                        <div className="text-center">
-                            <p className="text-sm text-muted-foreground">Avg. Calories</p>
-                            <p className="font-bold text-primary">{avgCalories}</p>
-                        </div>
-                        <div className="text-center">
-                            <p className="text-sm text-muted-foreground">Avg. Protein</p>
-                            <p className="font-bold text-primary">{avgProtein}g</p>
-                        </div>
-                    </div>
-                </CardFooter>
-            </Card>
         </div>
 
-        {/* Right Side (2 columns) */}
         <div className="lg:col-span-2 space-y-6">
-            <Card className="shadow-lg">
-                <CardHeader className="flex flex-row justify-between items-center">
-                    <CardTitle className="text-xl font-semibold text-primary">Daily Goals</CardTitle>
-                    <Button variant="ghost" size="icon">
-                        <Settings className="h-5 w-5 text-muted-foreground" />
-                    </Button>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    {dailyGoalsData.map(item => <GoalProgress key={item.title} {...item} />)}
-                </CardContent>
-            </Card>
-
             <Card className="shadow-lg">
                 <CardHeader>
                     <CardTitle className="text-xl font-semibold text-primary flex items-center">
                         <History className="mr-2 h-5 w-5"/>
-                        Recent Meals
+                        Today's Meals
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
+                   {isContextLoading ? (
+                     <div className="flex justify-center items-center py-10">
+                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                     </div>
+                   ) : recentMeals.filter(m => isToday(parseISO(m.loggedAt))).length > 0 ? (
                     <ul className="divide-y px-6">
-                        {recentMealsData.slice(0, 4).map((meal) => <MealItem key={meal.name} meal={meal} />)}
+                        {recentMeals.filter(m => isToday(parseISO(m.loggedAt))).slice(0, 4).map((meal) => <MealItem key={meal.id} meal={meal} />)}
                     </ul>
+                   ) : (
+                    <p className="text-sm text-muted-foreground italic text-center py-10 px-6">No meals logged today. Find a recipe and log it!</p>
+                   )}
                 </CardContent>
                 <CardFooter className="pt-4">
                     <Sheet>
                         <SheetTrigger asChild>
-                            <Button variant="outline" className="w-full">View All Meals</Button>
+                            <Button variant="outline" className="w-full" disabled={recentMeals.length === 0}>View Full History</Button>
                         </SheetTrigger>
                         <SheetContent side="bottom" className="h-[90vh] flex flex-col">
                             <SheetHeader className="text-left">
-                                <SheetTitle className="text-2xl font-bold text-primary">All Recent Meals</SheetTitle>
+                                <SheetTitle className="text-2xl font-bold text-primary">Full Meal History</SheetTitle>
                                 <SheetDescription>
                                     A complete log of your recently consumed meals.
                                 </SheetDescription>
                             </SheetHeader>
                             <ScrollArea className="flex-grow">
                                 <ul className="divide-y pr-6">
-                                    {recentMealsData.map((meal) => <MealItem key={meal.name} meal={meal} />)}
+                                    {recentMeals.map((meal) => <MealItem key={meal.id} meal={meal} />)}
                                 </ul>
                             </ScrollArea>
                         </SheetContent>
@@ -336,7 +286,58 @@ export default function NutritionPage() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                     <Button variant="secondary" className="w-full justify-start text-primary-foreground bg-primary-foreground/20 hover:bg-primary-foreground/30"><BookUser className="mr-2 h-5 w-5"/> Log a Meal</Button>
-                    <Button variant="secondary" className="w-full justify-start text-primary-foreground bg-primary-foreground/20 hover:bg-primary-foreground/30"><Target className="mr-2 h-5 w-5"/> Update Goals</Button>
+                     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button variant="secondary" className="w-full justify-start text-primary-foreground bg-primary-foreground/20 hover:bg-primary-foreground/30"><Target className="mr-2 h-5 w-5"/> Update Goals</Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Personalize Your Goals</DialogTitle>
+                                <DialogDescription>
+                                    Provide your height and weight to get personalized daily nutritional recommendations from our AI.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <Form {...form}>
+                                <form onSubmit={form.handleSubmit(onPersonalizeSubmit)} className="space-y-4">
+                                     <FormField
+                                        control={form.control}
+                                        name="height"
+                                        render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Height (cm)</FormLabel>
+                                            <FormControl>
+                                            <Input type="number" placeholder="e.g., 175" {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="weight"
+                                        render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Weight (kg)</FormLabel>
+                                            <FormControl>
+                                            <Input type="number" placeholder="e.g., 70" {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                        )}
+                                    />
+                                    <DialogFooter>
+                                        <DialogClose asChild>
+                                            <Button type="button" variant="ghost">Cancel</Button>
+                                        </DialogClose>
+                                        <Button type="submit" disabled={isContextLoading}>
+                                            {isContextLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                            Save & Get Goals
+                                        </Button>
+                                    </DialogFooter>
+                                </form>
+                            </Form>
+                        </DialogContent>
+                    </Dialog>
                     <Button variant="secondary" className="w-full justify-start text-primary-foreground bg-primary-foreground/20 hover:bg-primary-foreground/30"><FileText className="mr-2 h-5 w-5"/> View Report</Button>
                 </CardContent>
             </Card>

@@ -1,23 +1,31 @@
+
 "use client";
 
 import type { Recipe } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ExternalLink, List } from 'lucide-react';
+import { ExternalLink, List, BookCheck, Loader2 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useAppContext } from '@/contexts/AppContext';
 
 interface RecipeDisplayProps {
   recipe: Recipe;
 }
 
 export function RecipeDisplay({ recipe }: RecipeDisplayProps) {
+  const { logMeal, isContextLoading } = useAppContext();
+
   const handleNutritionalInfo = () => {
     window.open(`https://www.google.com/search?q=${encodeURIComponent(recipe.name + " nutritional information")}`, "_blank");
   };
 
+  const handleLogMeal = async () => {
+    await logMeal(recipe);
+  };
+
   return (
-    <Card className="w-full max-w-2xl mx-auto my-4 shadow-xl bg-card">
+    <Card className="w-full max-w-2xl mx-auto my-4 shadow-xl bg-card border-none">
       <CardHeader className="border-b">
         <CardTitle className="text-3xl font-bold text-primary">{recipe.name}</CardTitle>
         {recipe.url && (
@@ -26,7 +34,7 @@ export function RecipeDisplay({ recipe }: RecipeDisplayProps) {
           </a>
         )}
       </CardHeader>
-      <ScrollArea className="max-h-[calc(100vh-20rem)]"> {/* Adjust max height as needed */}
+      <ScrollArea className="max-h-[calc(100vh-22rem)]">
         <CardContent className="pt-6 space-y-6">
           <div>
             <h3 className="text-xl font-semibold text-secondary-foreground mb-2 flex items-center gap-2"><List size={20}/>Ingredients</h3>
@@ -45,12 +53,15 @@ export function RecipeDisplay({ recipe }: RecipeDisplayProps) {
           </div>
         </CardContent>
       </ScrollArea>
-      <CardFooter className="flex flex-col sm:flex-row justify-between items-center pt-6 border-t">
-         <Button onClick={handleNutritionalInfo} variant="outline" className="w-full sm:w-auto mb-2 sm:mb-0">
+      <CardFooter className="flex flex-col sm:flex-row justify-between items-center pt-6 border-t gap-2">
+         <Button onClick={handleNutritionalInfo} variant="outline" className="w-full sm:w-auto">
             <ExternalLink className="mr-2 h-4 w-4" />
             Nutritional Info
           </Button>
-        {recipe.url && <Badge variant="secondary">Source: Web</Badge>}
+          <Button onClick={handleLogMeal} disabled={isContextLoading} className="w-full sm:w-auto">
+            {isContextLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookCheck className="mr-2 h-4 w-4" />}
+            Log Meal
+          </Button>
       </CardFooter>
     </Card>
   );
