@@ -1,14 +1,14 @@
 
 "use client";
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppContext } from '@/contexts/AppContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Trash2, Loader2, BarChart, ChefHat, AlertTriangle } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, BarChart, ChefHat, AlertTriangle, Filter } from 'lucide-react';
 import { format, differenceInDays, parseISO } from 'date-fns';
 import type { StoredIngredientItem, StorageLocation, IngredientCategory } from '@/lib/types';
 import {
@@ -35,6 +35,8 @@ const locationColors: Record<StorageLocation, string> = {
   freezer: "bg-sky-200 text-sky-800",
 };
 
+const ingredientCategories: IngredientCategory[] = ['protein', 'vegetable', 'fruit', 'dairy', 'grain', 'spice', 'other'];
+
 const getExpiryBadgeVariant = (expiryDate?: string): { variant: "default" | "secondary" | "destructive" | "outline", text: string } => {
   if (!expiryDate) return { variant: "secondary", text: "N/A" };
   const daysLeft = differenceInDays(parseISO(expiryDate), new Date());
@@ -47,6 +49,7 @@ const getExpiryBadgeVariant = (expiryDate?: string): { variant: "default" | "sec
 export default function StoragePage() {
   const { storedIngredients, removeStoredIngredient, isContextLoading, isMounted } = useAppContext();
   const router = useRouter();
+  const [categoryFilter, setCategoryFilter] = useState<IngredientCategory | null>(null);
 
   if (!isMounted) {
     return (
@@ -65,8 +68,15 @@ export default function StoragePage() {
   const expiringSoonCount = storedIngredients.filter(item => {
     if (!item.expiryDate) return false;
     const daysLeft = differenceInDays(parseISO(item.expiryDate), new Date());
-    return daysLeft <= 3;
+    return daysLeft <= 3 && daysLeft >= 0;
   }).length;
+
+  const filteredIngredients = useMemo(() => {
+    if (!categoryFilter) {
+      return storedIngredients;
+    }
+    return storedIngredients.filter(item => item.category === categoryFilter);
+  }, [storedIngredients, categoryFilter]);
   
   return (
     <div className="space-y-6">
@@ -90,26 +100,57 @@ export default function StoragePage() {
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Expiration Warning!</AlertTitle>
           <AlertDescription>
-            You have <strong>{expiringSoonCount}</strong> item(s) that are either expired or expiring within the next 3 days. Please check your inventory below.
+            You have <strong>{expiringSoonCount}</strong> item(s) expiring within the next 3 days. Please check your inventory below.
           </AlertDescription>
         </Alert>
       )}
 
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <Filter className="h-4 w-4" />
+          <span>Filter by Category:</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+            <Button
+              variant={!categoryFilter ? 'default' : 'outline'}
+              onClick={() => setCategoryFilter(null)}
+              size="sm"
+            >
+              All Items
+            </Button>
+            {ingredientCategories.map(cat => (
+              <Button
+                key={cat}
+                variant={categoryFilter === cat ? 'default' : 'outline'}
+                onClick={() => setCategoryFilter(cat)}
+                size="sm"
+                className="capitalize"
+              >
+                {cat}
+              </Button>
+            ))}
+        </div>
+      </div>
+
       <Card className="shadow-lg">
         <CardContent className="pt-6">
-          {isContextLoading && storedIngredients.length === 0 ? (
+          {isContextLoading && filteredIngredients.length === 0 ? (
              <div className="flex justify-center items-center py-10">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <p className="ml-2 text-primary">Loading your storage...</p>
             </div>
-          ) : storedIngredients.length === 0 ? (
+          ) : filteredIngredients.length === 0 ? (
             <div className="text-center py-10">
                 <ChefHat size={48} className="mx-auto text-muted-foreground" />
-                <h3 className="mt-4 text-lg font-medium text-foreground">Your storage is empty!</h3>
-                <p className="mt-1 text-sm text-muted-foreground">Click "Add Item" to start managing your food inventory.</p>
+                <h3 className="mt-4 text-lg font-medium text-foreground">
+                  {categoryFilter ? `No items in ${categoryFilter}` : "Your storage is empty!"}
+                </h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {categoryFilter ? `Try selecting another category or add a new item.` : `Click "Add Item" to start managing your food inventory.`}
+                </p>
                 <Button onClick={() => router.push('/storage/add')} className="mt-6">
                     <PlusCircle className="mr-2 h-4 w-4"/>
-                    Add Your First Item
+                    {categoryFilter ? "Add New Item" : "Add Your First Item"}
                 </Button>
             </div>
           ) : (
@@ -128,16 +169,16 @@ export default function StoragePage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {storedIngredients.map((item) => {
+                    {filteredIngredients.map((item) => {
                        const expiry = getExpiryBadgeVariant(item.expiryDate);
                        return (
                         <TableRow key={item.id}>
                           <TableCell className="font-medium">{item.name}</TableCell>
                           <TableCell>
-                            <Badge variant="outline" className={categoryColors[item.category]}>{item.category}</Badge>
+                            <Badge variant="outline" className={cn(categoryColors[item.category], "border")}>{item.category}</Badge>
                           </TableCell>
                            <TableCell>
-                             <Badge variant="outline" className={locationColors[item.location]}>{item.location}</Badge>
+                             <Badge variant="outline" className={cn(locationColors[item.location], "border")}>{item.location}</Badge>
                           </TableCell>
                           <TableCell className="text-right">{item.quantity} {item.unit}</TableCell>
                           <TableCell>{format(parseISO(item.purchaseDate), "MMM dd, yyyy")}</TableCell>
@@ -147,14 +188,14 @@ export default function StoragePage() {
                                  <Badge variant={expiry.variant}>{expiry.text}</Badge>
                                </TooltipTrigger>
                                <TooltipContent>
-                                 <p>AI Predicted Expiry: {item.expiryDate ? format(parseISO(item.expiryDate), "MMMM do, yyyy") : 'Not set'}</p>
+                                 <p>{item.expiryDate ? `Expires: ${format(parseISO(item.expiryDate), "MMMM do, yyyy")}`: 'Expiry date not set'}</p>
                                </TooltipContent>
                              </Tooltip>
                           </TableCell>
                           <TableCell className="text-right">
                              <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" onClick={() => handleRemove(item.id)}>
+                                  <Button variant="ghost" size="icon" onClick={() => handleRemove(item.id)} disabled={isContextLoading}>
                                     <Trash2 className="h-4 w-4 text-destructive" />
                                   </Button>
                                 </TooltipTrigger>

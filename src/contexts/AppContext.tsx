@@ -24,7 +24,7 @@ const DEFAULT_GOALS: NutritionalGoals = {
 
 interface AppContextType {
   storedIngredients: StoredIngredientItem[];
-  addStoredIngredient: (item: Omit<StoredIngredientItem, 'id' | 'expiryDate'>) => Promise<boolean>;
+  addStoredIngredient: (item: Omit<StoredIngredientItem, 'id' | 'expiryDate'> & { expiryDate?: string }) => Promise<boolean>;
   removeStoredIngredient: (id: string) => Promise<void>;
   
   preferredIngredients: string[];
@@ -42,7 +42,7 @@ interface AppContextType {
   nutritionalGoals: NutritionalGoals;
   dailyIntake: NutritionalInfo;
   recentMeals: MealLog[];
-  logMeal: (recipe: Recipe) => Promise<void>;
+  logMeal: (recipe: Recipe, nutritionalInfo: NutritionalInfo) => Promise<void>;
   updateUserProfileAndGoals: (profile: UserProfile) => Promise<void>;
   
   isContextLoading: boolean;
@@ -160,22 +160,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [recipeRatings, isMounted]);
 
-  const addStoredIngredient = useCallback(async (item: Omit<StoredIngredientItem, 'id' | 'expiryDate'>): Promise<boolean> => {
+  const addStoredIngredient = useCallback(async (item: Omit<StoredIngredientItem, 'id' | 'expiryDate'> & { expiryDate?: string }): Promise<boolean> => {
     if (!user) {
       toast({ title: "Not Logged In", description: "Please log in to save ingredients.", variant: "destructive" });
       return false;
     }
     setIsContextLoading(true);
     try {
-      const expiryPrediction = await predictExpiry({
-        name: item.name,
-        category: item.category,
-        location: item.location,
-        purchaseDate: format(new Date(item.purchaseDate), 'yyyy-MM-dd'),
-      });
-      const docRef = await addDoc(getUserStorageCollection(user.uid), { ...item, expiryDate: expiryPrediction.expiryDate });
-      const newItem: StoredIngredientItem = { id: docRef.id, ...item, expiryDate: expiryPrediction.expiryDate };
-      setStoredIngredients(prev => [...prev, newItem]);
+      const finalExpiryDate = item.expiryDate 
+        ? item.expiryDate
+        : (await predictExpiry({
+            name: item.name,
+            category: item.category,
+            location: item.location,
+            purchaseDate: format(new Date(item.purchaseDate), 'yyyy-MM-dd'),
+          })).expiryDate;
+
+      const docRef = await addDoc(getUserStorageCollection(user.uid), { ...item, expiryDate: finalExpiryDate });
+      const newItem: StoredIngredientItem = { id: docRef.id, ...item, expiryDate: finalExpiryDate };
+      setStoredIngredients(prev => [...prev, newItem].sort((a, b) => new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime()));
       toast({ title: "Item Added", description: `${item.name} has been added.` });
       return true;
     } catch (error) {
@@ -204,14 +207,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [user, storedIngredients, toast]);
 
-  const logMeal = useCallback(async (recipe: Recipe) => {
+  const logMeal = useCallback(async (recipe: Recipe, nutritionalInfo: NutritionalInfo) => {
     if (!user) {
       toast({ title: "Not Logged In", description: "Please log in to log a meal.", variant: "destructive" });
       return;
     }
     setIsContextLoading(true);
     try {
-      const nutritionalInfo = await getNutritionalInfo({ name: recipe.name, ingredients: recipe.ingredients });
       const mealLog: Omit<MealLog, 'id'> = {
         ...recipe,
         ...nutritionalInfo,
@@ -221,8 +223,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       
       const newMeal = { ...mealLog, id: docRef.id };
       
-      // Use functional update to ensure we have the latest state
-      setRecentMeals(prevMeals => [newMeal, ...prevMeals]);
+      setRecentMeals(prevMeals => [newMeal, ...prevMeals].sort((a,b) => parseISO(b.loggedAt).getTime() - parseISO(a.loggedAt).getTime()));
 
       toast({ title: "Meal Logged!", description: `${recipe.name} added to your daily intake.` });
     } catch (error) {

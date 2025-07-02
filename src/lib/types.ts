@@ -5,6 +5,7 @@ export interface Recipe {
   ingredients: string[];
   instructions: string;
   url?: string;
+  missingIngredients?: string[];
 }
 
 export interface NutritionalInfo {

@@ -1,22 +1,23 @@
 
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAppContext } from '@/contexts/AppContext';
 import { RecipeCard } from '@/components/RecipeCard';
 import { Button } from '@/components/ui/button';
-import { recommendRecipes } from '@/ai/flows/recommend-recipes';
-import { Loader2, AlertTriangle, Info, Zap, ChefHat } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { recommendRecipes, RecommendRecipesInput } from '@/ai/flows/recommend-recipes';
+import { Loader2, AlertTriangle, Info, Zap, ChefHat, Search, Warehouse } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRouter } from 'next/navigation';
 
 export default function HomePage() {
   const {
     storedIngredients,
-    preferredIngredients,
     recommendedRecipes,
     setRecommendedRecipes,
     isContextLoading,
@@ -24,6 +25,9 @@ export default function HomePage() {
     isMounted,
     clearRecommendedRecipes,
   } = useAppContext();
+  
+  const [mode, setMode] = useState<'storage' | 'query'>('storage');
+  const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   const router = useRouter();
@@ -33,34 +37,39 @@ export default function HomePage() {
     clearRecommendedRecipes();
     
     const storedIngredientNames = storedIngredients.map(item => item.name.trim());
-    
-    if (storedIngredientNames.length === 0) {
-      setError("Please add some ingredients to your storage to find recipes.");
-      toast({
-        title: "Missing Ingredients",
-        description: "Add ingredients via the Storage page before searching for recipes.",
-        variant: "destructive",
-      });
-      return;
+    let input: RecommendRecipesInput;
+
+    if (mode === 'storage') {
+      if (storedIngredientNames.length === 0) {
+        const msg = "Add ingredients via the Storage page before searching for recipes.";
+        setError(msg);
+        toast({ title: "Missing Ingredients", description: msg, variant: "destructive" });
+        return;
+      }
+      input = { ingredients: storedIngredientNames, strictMode: true, numRecipes: 6 };
+    } else { // mode === 'query'
+      if (!query.trim()) {
+        const msg = "Please enter what you want to cook.";
+        setError(msg);
+        toast({ title: "Empty Search", description: msg, variant: "destructive" });
+        return;
+      }
+      input = { ingredients: storedIngredientNames, query: query, strictMode: false, numRecipes: 6 };
     }
 
     setIsContextLoading(true);
     try {
-      const result = await recommendRecipes({
-        ingredients: storedIngredientNames,
-        preferredIngredients: preferredIngredients.length > 0 ? preferredIngredients : undefined,
-        numRecipes: 6, 
-      });
+      const result = await recommendRecipes(input);
       setRecommendedRecipes(result.recipes);
       if (result.recipes.length === 0) {
         toast({
             title: "No Recipes Found",
-            description: "Try adding more or different ingredients to your storage.",
+            description: "Try adding more ingredients or changing your search query.",
         });
       } else {
          toast({
             title: "Recipes Found!",
-            description: `Found ${result.recipes.length} recipes for you.`,
+            description: `Found ${result.recipes.length} delicious ideas for you.`,
         });
       }
     } catch (e) {
@@ -86,6 +95,7 @@ export default function HomePage() {
   }
 
   const storedIngredientNames = storedIngredients.map(item => item.name);
+  const isSearchDisabled = isContextLoading || (mode === 'storage' && storedIngredientNames.length === 0) || (mode === 'query' && !query.trim());
 
   return (
     <div className="space-y-8">
@@ -96,23 +106,20 @@ export default function HomePage() {
             AI Recipe Finder
           </CardTitle>
           <CardDescription className="text-lg text-foreground/80">
-            Tell us what ingredients you have, and our AI will whip up some delicious recipe ideas!
+            Discover your next meal. Use your available ingredients or search for something new!
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Using Ingredients From Your Storage</CardTitle>
-              <CardDescription>
-                {storedIngredientNames.length > 0 
-                  ? "We'll find recipes based on the items you've saved." 
-                  : "Your storage is empty. Add items to find recipes."
-                }
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+          <Tabs value={mode} onValueChange={(value) => setMode(value as any)} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="storage" className="gap-2"><Warehouse /> Use My Storage</TabsTrigger>
+              <TabsTrigger value="query" className="gap-2"><Search /> Find a Recipe</TabsTrigger>
+            </TabsList>
+            <TabsContent value="storage" className="mt-4 p-4 bg-card rounded-md border">
+              <CardTitle className="text-lg">What can I make now?</CardTitle>
+              <CardDescription className="mb-4">Find recipes using only ingredients you already have in storage.</CardDescription>
               {storedIngredientNames.length > 0 ? (
-                <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto p-1 rounded-md bg-muted/50">
+                <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto p-2 rounded-md bg-muted/50 border">
                   {storedIngredientNames.map(name => (
                     <span key={name} className="text-sm px-3 py-1 bg-secondary text-secondary-foreground rounded-full shadow-sm">{name}</span>
                   ))}
@@ -120,27 +127,26 @@ export default function HomePage() {
               ): (
                 <div className="text-center py-4">
                   <ChefHat size={32} className="mx-auto text-muted-foreground" />
-                  <p className="mt-2 text-sm text-muted-foreground">No ingredients yet.</p>
+                  <p className="mt-2 text-sm text-muted-foreground">Your storage is empty.</p>
                   <Button variant="secondary" size="sm" className="mt-2" onClick={() => router.push('/storage/add')}>Add an Item</Button>
                 </div>
               )}
-            </CardContent>
-          </Card>
-          
-          {preferredIngredients.length > 0 && (
-            <div className="p-4 border rounded-lg bg-secondary/50">
-              <h3 className="text-sm font-medium text-secondary-foreground mb-1">Prioritizing favorites from your account:</h3>
-              <div className="flex flex-wrap gap-1">
-                {preferredIngredients.map(pi => (
-                  <span key={pi} className="text-xs px-2 py-0.5 bg-primary text-primary-foreground rounded-full">{pi}</span>
-                ))}
-              </div>
-            </div>
-          )}
+            </TabsContent>
+            <TabsContent value="query" className="mt-4 p-4 bg-card rounded-md border">
+               <CardTitle className="text-lg">What do you want to cook?</CardTitle>
+              <CardDescription className="mb-4">Search for a dish, and we'll create recipes, using your stored items where possible.</CardDescription>
+              <Input 
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="e.g., 'Quick chicken dinner' or 'vegetarian pasta'"
+                className="text-base"
+              />
+            </TabsContent>
+          </Tabs>
           
           <Button 
             onClick={handleFindRecipes} 
-            disabled={isContextLoading || storedIngredientNames.length === 0}
+            disabled={isSearchDisabled}
             size="lg" 
             className="w-full text-base py-3 shadow-md hover:shadow-lg transition-shadow"
           >
@@ -162,12 +168,12 @@ export default function HomePage() {
         </Alert>
       )}
 
-      {recommendedRecipes.length === 0 && !isContextLoading && !error && storedIngredientNames.length > 0 && (
+      {recommendedRecipes.length === 0 && !isContextLoading && !error && (
          <Alert className="shadow-md bg-card">
             <Info className="h-4 w-4" />
             <AlertTitle>Ready to Search?</AlertTitle>
             <AlertDescription>
-              Click "Generate Recipe Ideas" to discover what you can make with your ingredients.
+              Configure your search above and click "Generate Recipe Ideas" to discover what you can make.
             </AlertDescription>
           </Alert>
       )}

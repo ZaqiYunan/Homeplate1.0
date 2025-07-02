@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -14,11 +15,15 @@ import {z} from 'genkit';
 const RecommendRecipesInputSchema = z.object({
   ingredients: z
     .array(z.string())
-    .describe('An array of ingredients available to the user.'),
-  preferredIngredients: z
-    .array(z.string())
     .optional()
-    .describe('An optional array of ingredients the user prefers to use.'),
+    .describe('An array of ingredients the user has available.'),
+  query: z
+    .string()
+    .optional()
+    .describe("The user's direct query, e.g., 'chicken stir fry' or 'quick breakfast'"),
+  strictMode: z
+    .boolean()
+    .describe('If true, only use available ingredients. If false, AI can add ingredients.'),
   numRecipes: z
     .number()
     .default(3)
@@ -31,6 +36,10 @@ const RecipeSchema = z.object({
   ingredients: z.array(z.string()).describe('The ingredients required for the recipe.'),
   instructions: z.string().describe('The step-by-step instructions for the recipe.'),
   url: z.string().optional().describe('A link to the recipe on the web.'),
+  missingIngredients: z
+    .array(z.string())
+    .optional()
+    .describe("A list of ingredients required for the recipe that are NOT in the user's available ingredients list."),
 });
 
 const RecommendRecipesOutputSchema = z.object({
@@ -46,20 +55,38 @@ const prompt = ai.definePrompt({
   name: 'recommendRecipesPrompt',
   input: {schema: RecommendRecipesInputSchema},
   output: {schema: RecommendRecipesOutputSchema},
-  prompt: `You are a recipe recommendation expert. Given the ingredients a user has available, you will suggest recipes that utilize as many of the user's ingredients as possible.
+  prompt: `You are a recipe recommendation expert. Your primary goal is to help a user decide what to cook.
 
-  The user has the following ingredients available:
-  {{#each ingredients}}- {{this}}\n{{/each}}
+{{#if strictMode}}
+You are in "Use My Storage" mode. The user wants to cook using ONLY the ingredients they have.
+Your suggestions should maximize the use of these ingredients.
 
-  {{#if preferredIngredients}}
-  The user prefers to use the following ingredients:
-  {{#each preferredIngredients}}- {{this}}\n{{/each}}
-  {{/if}}
+Available ingredients:
+{{#each ingredients}}
+- {{this}}
+{{/each}}
 
-  Please suggest {{numRecipes}} recipes, formatted as a JSON array of Recipe objects.
-  Each Recipe object should include the recipe name, a list of ingredients, the step-by-step instructions, and optionally a url of the recipe.
-  Ensure the ingredients in the Recipe object are a list of individual ingredients as opposed to a sentence.
-  `,
+If a common complementary ingredient (like salt, pepper, oil, water) is essential for the recipe but not in the available list, you MUST list it in the 'missingIngredients' field. Do not list main ingredients as missing.
+{{else}}
+You are in "Creative Mode". The user wants ideas for "{{query}}".
+{{#if ingredients}}
+They have the following ingredients available, which you should try to incorporate, but you are not limited to them:
+Available ingredients:
+{{#each ingredients}}
+- {{this}}
+{{/each}}
+{{else}}
+The user has not specified any available ingredients.
+{{/if}}
+
+Suggest creative recipes that match the user's query. The recipes can and should include ingredients the user does not have.
+You MUST list any required ingredients that are not in the user's 'Available ingredients' list into the 'missingIngredients' field for each recipe.
+{{/if}}
+
+Please suggest {{numRecipes}} recipes.
+Each Recipe object should include the recipe name, a complete list of all required ingredients, the step-by-step instructions, and the 'missingIngredients' list.
+Ensure the ingredients in the Recipe object are a list of individual ingredients as opposed to a sentence.
+`,
 });
 
 const recommendRecipesFlow = ai.defineFlow(
