@@ -32,6 +32,16 @@ export default function HomePage() {
   const { toast } = useToast();
   const router = useRouter();
 
+  const handleModeChange = (newMode: 'storage' | 'query') => {
+    setMode(newMode);
+    clearRecommendedRecipes();
+    setError(null);
+    // Reset query when switching away from query mode to avoid confusion
+    if (newMode !== 'query') {
+        setQuery('');
+    }
+  };
+
   const handleFindRecipes = async () => {
     setError(null);
     clearRecommendedRecipes();
@@ -110,7 +120,7 @@ export default function HomePage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <Tabs value={mode} onValueChange={(value) => setMode(value as any)} className="w-full">
+          <Tabs value={mode} onValueChange={(value) => handleModeChange(value as 'storage' | 'query')} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="storage" className="gap-2"><Warehouse /> Use My Storage</TabsTrigger>
               <TabsTrigger value="query" className="gap-2"><Search /> Find a Recipe</TabsTrigger>
