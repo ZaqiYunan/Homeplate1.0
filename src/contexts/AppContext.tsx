@@ -22,6 +22,12 @@ const DEFAULT_GOALS: NutritionalGoals = {
     fat: 80,
 };
 
+const DEFAULT_PROFILE: UserProfile = {
+    height: 0,
+    weight: 0,
+    role: 'user',
+};
+
 interface AppContextType {
   storedIngredients: StoredIngredientItem[];
   addStoredIngredient: (item: Omit<StoredIngredientItem, 'id' | 'expiryDate'> & { expiryDate?: string }) => Promise<boolean>;
@@ -43,7 +49,7 @@ interface AppContextType {
   dailyIntake: NutritionalInfo;
   recentMeals: MealLog[];
   logMeal: (recipe: Recipe, nutritionalInfo: NutritionalInfo) => Promise<void>;
-  updateUserProfileAndGoals: (profile: UserProfile) => Promise<void>;
+  updateUserProfileAndGoals: (profileData: Pick<UserProfile, 'height' | 'weight'>) => Promise<void>;
   
   isContextLoading: boolean;
   setIsContextLoading: (loading: boolean) => void;
@@ -79,7 +85,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [recipeRatings, setRecipeRatings] = useState<Record<string, number>>({});
   
   // Nutrition Data
-  const [userProfile, setUserProfile] = useState<UserProfile>({ height: 0, weight: 0 });
+  const [userProfile, setUserProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [nutritionalGoals, setNutritionalGoals] = useState<NutritionalGoals>(DEFAULT_GOALS);
   const [recentMeals, setRecentMeals] = useState<MealLog[]>([]);
 
@@ -125,7 +131,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       
       setStoredIngredients(storageSnap.docs.map(d => ({ id: d.id, ...d.data() } as StoredIngredientItem)));
       setPreferredIngredients(favoritesSnap.exists() ? favoritesSnap.data().ingredients || [] : []);
-      setUserProfile(profileSnap.exists() ? profileSnap.data() as UserProfile : { height: 0, weight: 0 });
+
+      const dbProfile = profileSnap.exists() ? profileSnap.data() as UserProfile : {};
+      setUserProfile({ ...DEFAULT_PROFILE, ...dbProfile });
+
       setNutritionalGoals(goalsSnap.exists() ? goalsSnap.data() as NutritionalGoals : DEFAULT_GOALS);
       
       const meals = mealsSnap.docs.map(d => ({ id: d.id, ...d.data() } as MealLog));
@@ -147,7 +156,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setStoredIngredients([]);
       setPreferredIngredients([]);
       setRecommendedRecipes([]);
-      setUserProfile({ height: 0, weight: 0 });
+      setUserProfile(DEFAULT_PROFILE);
       setNutritionalGoals(DEFAULT_GOALS);
       setRecentMeals([]);
       setIsContextLoading(false);
@@ -234,23 +243,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [user, toast]);
 
-  const updateUserProfileAndGoals = useCallback(async (profile: UserProfile) => {
+  const updateUserProfileAndGoals = useCallback(async (profileData: Pick<UserProfile, 'height' | 'weight'>) => {
     if (!user) {
       toast({ title: "Not Logged In", description: "Please log in to update your profile.", variant: "destructive" });
       return;
     }
     setIsContextLoading(true);
     try {
-      const goals = await getPersonalizedGoals(profile);
+       const fullProfileForGoals: UserProfile = {
+        ...userProfile,
+        ...profileData,
+      };
+
+      const goals = await getPersonalizedGoals(fullProfileForGoals);
       const profileRef = getUserProfileRef(user.uid);
       const goalsRef = getUserGoalsRef(user.uid);
       
       await Promise.all([
-        setDoc(profileRef, profile),
+        setDoc(profileRef, profileData, { merge: true }),
         setDoc(goalsRef, goals)
       ]);
 
-      setUserProfile(profile);
+      setUserProfile(prev => ({ ...prev, ...profileData }));
       setNutritionalGoals(goals);
       toast({ title: "Profile Updated!", description: "Your nutritional goals have been personalized." });
     } catch (error) {
@@ -259,7 +273,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } finally {
       setIsContextLoading(false);
     }
-  }, [user, toast]);
+  }, [user, toast, userProfile]);
 
   const togglePreferredIngredient = async (ingredientName: string) => { /* ... implementation from before ... */ };
   const clearPreferredIngredients = async () => { /* ... implementation from before ... */ };

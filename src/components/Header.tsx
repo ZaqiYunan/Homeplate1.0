@@ -6,8 +6,9 @@ import { HomeplateLogo } from '@/components/icons/HomeplateLogo';
 import { Button } from '@/components/ui/button';
 import { useRouter, usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { ChefHat, Warehouse, LogIn, LogOut, UserPlus, UserCircle2, LayoutDashboard, HeartPulse } from 'lucide-react';
+import { ChefHat, Warehouse, LogIn, LogOut, UserPlus, UserCircle2, LayoutDashboard, HeartPulse, Shield } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAppContext } from '@/contexts/AppContext';
 import { auth } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -24,6 +25,7 @@ export function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, setUser } = useAuth();
+  const { userProfile } = useAppContext();
   const { toast } = useToast();
 
   const navItems = [
@@ -69,6 +71,21 @@ export function Header() {
             </Button>
           ))}
           
+          {user && userProfile.role === 'admin' && (
+             <Button
+              variant="ghost"
+              onClick={() => router.push('/admin')}
+              className={cn(
+                "text-sm font-medium transition-colors hover:text-accent-foreground hover:bg-accent/80",
+                pathname === '/admin' ? "bg-accent text-accent-foreground" : "text-foreground/70",
+                "sm:px-3 px-2 py-2 flex items-center gap-1.5 h-9 sm:h-10"
+              )}
+            >
+              <Shield size={18} />
+              <span className="hidden sm:inline">Admin</span>
+            </Button>
+          )}
+
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

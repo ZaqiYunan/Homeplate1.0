@@ -25,6 +25,7 @@ export interface UserProfile {
   weight: number; // in kg
   age?: number;
   gender?: 'male' | 'female' | 'other';
+  role?: 'user' | 'admin';
 }
 
 export interface NutritionalGoals {
