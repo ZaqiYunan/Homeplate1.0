@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -51,6 +52,13 @@ export default function StoragePage() {
   const router = useRouter();
   const [categoryFilter, setCategoryFilter] = useState<IngredientCategory | null>(null);
 
+  const filteredIngredients = useMemo(() => {
+    if (!categoryFilter) {
+      return storedIngredients;
+    }
+    return storedIngredients.filter(item => item.category === categoryFilter);
+  }, [storedIngredients, categoryFilter]);
+
   if (!isMounted) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -70,13 +78,6 @@ export default function StoragePage() {
     const daysLeft = differenceInDays(parseISO(item.expiryDate), new Date());
     return daysLeft <= 3 && daysLeft >= 0;
   }).length;
-
-  const filteredIngredients = useMemo(() => {
-    if (!categoryFilter) {
-      return storedIngredients;
-    }
-    return storedIngredients.filter(item => item.category === categoryFilter);
-  }, [storedIngredients, categoryFilter]);
   
   return (
     <div className="space-y-6">
