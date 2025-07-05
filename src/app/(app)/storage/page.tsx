@@ -116,9 +116,6 @@ export default function StoragePage() {
           <p className="text-muted-foreground mt-1">An overview of all your food items, their locations, and expiry dates.</p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
-          <Button onClick={() => router.push('/')} variant="outline" className="flex-1 sm:flex-initial sm:w-auto">
-            <ChefHat className="mr-2 h-4 w-4"/> Recipe Finder
-          </Button>
           <Button onClick={() => router.push('/dashboard')} variant="outline" className="flex-1 sm:flex-initial sm:w-auto">
             <BarChart className="mr-2 h-4 w-4"/> Dashboard
           </Button>
@@ -254,16 +251,28 @@ export default function StoragePage() {
                              </Tooltip>
                           </TableCell>
                           <TableCell className="text-right">
-                             <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" onClick={() => handleRemove(item.id)} disabled={isContextLoading}>
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Delete {item.name}</p>
-                                </TooltipContent>
-                              </Tooltip>
+                             <div className="flex items-center justify-end gap-1">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon" onClick={() => router.push(`/?mode=query&query=${encodeURIComponent(item.name)}`)}>
+                                      <ChefHat className="h-4 w-4 text-primary" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Find recipes with {item.name}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                   <TooltipTrigger asChild>
+                                     <Button variant="ghost" size="icon" onClick={() => handleRemove(item.id)} disabled={isContextLoading}>
+                                       <Trash2 className="h-4 w-4 text-destructive" />
+                                     </Button>
+                                   </TooltipTrigger>
+                                   <TooltipContent>
+                                     <p>Delete {item.name}</p>
+                                   </TooltipContent>
+                                 </Tooltip>
+                             </div>
                           </TableCell>
                         </TableRow>
                        )
@@ -278,5 +287,3 @@ export default function StoragePage() {
     </div>
   );
 }
-
-    

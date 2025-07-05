@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useAppContext } from '@/contexts/AppContext';
 import { RecipeCard } from '@/components/RecipeCard';
 import { Button } from '@/components/ui/button';
@@ -13,9 +13,10 @@ import { useToast } from "@/hooks/use-toast";
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function HomePage() {
+
+function HomePageContent() {
   const {
     storedIngredients,
     recommendedRecipes,
@@ -26,30 +27,26 @@ export default function HomePage() {
     clearRecommendedRecipes,
   } = useAppContext();
   
-  const [mode, setMode] = useState<'storage' | 'query'>('storage');
-  const [query, setQuery] = useState('');
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const initialMode = searchParams.get('mode') as 'storage' | 'query' || 'storage';
+  const initialQuery = searchParams.get('query') || '';
+
+  const [mode, setMode] = useState<'storage' | 'query'>(initialMode);
+  const [query, setQuery] = useState(initialQuery);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
-  const router = useRouter();
+  const [hasAutoSearched, setHasAutoSearched] = useState(false);
 
-  const handleModeChange = (newMode: 'storage' | 'query') => {
-    setMode(newMode);
-    clearRecommendedRecipes();
-    setError(null);
-    // Reset query when switching away from query mode to avoid confusion
-    if (newMode !== 'query') {
-        setQuery('');
-    }
-  };
-
-  const handleFindRecipes = async () => {
+  const handleFindRecipes = useCallback(async (searchMode: 'storage' | 'query', searchQuery: string) => {
     setError(null);
     clearRecommendedRecipes();
     
     const storedIngredientNames = storedIngredients.map(item => item.name.trim());
     let input: RecommendRecipesInput;
 
-    if (mode === 'storage') {
+    if (searchMode === 'storage') {
       if (storedIngredientNames.length === 0) {
         const msg = "Add ingredients via the Storage page before searching for recipes.";
         setError(msg);
@@ -58,13 +55,13 @@ export default function HomePage() {
       }
       input = { ingredients: storedIngredientNames, strictMode: true, numRecipes: 6 };
     } else { // mode === 'query'
-      if (!query.trim()) {
+      if (!searchQuery.trim()) {
         const msg = "Please enter what you want to cook.";
         setError(msg);
         toast({ title: "Empty Search", description: msg, variant: "destructive" });
         return;
       }
-      input = { ingredients: storedIngredientNames, query: query, strictMode: false, numRecipes: 6 };
+      input = { ingredients: storedIngredientNames, query: searchQuery, strictMode: false, numRecipes: 6 };
     }
 
     setIsContextLoading(true);
@@ -94,7 +91,35 @@ export default function HomePage() {
     } finally {
       setIsContextLoading(false);
     }
+  }, [clearRecommendedRecipes, setRecommendedRecipes, setIsContextLoading, storedIngredients, toast]);
+
+  useEffect(() => {
+    // Automatically search if navigated with query params, but only once.
+    if (initialQuery && isMounted && !hasAutoSearched) {
+      handleFindRecipes(initialMode, initialQuery);
+      setHasAutoSearched(true);
+    }
+  }, [initialQuery, initialMode, isMounted, hasAutoSearched, handleFindRecipes]);
+
+
+  const handleModeChange = (newMode: 'storage' | 'query') => {
+    setMode(newMode);
+    clearRecommendedRecipes();
+    setError(null);
+    if (newMode !== 'query') {
+        setQuery('');
+    }
+    // Also clear the URL query params
+    router.replace('/');
   };
+
+  const handleManualSearch = () => {
+    handleFindRecipes(mode, query);
+    // Update URL to be bookmarkable/shareable
+    const newUrl = `/?mode=${mode}${query ? `&query=${encodeURIComponent(query)}` : ''}`;
+    router.push(newUrl, { scroll: false });
+  };
+
 
   if (!isMounted) {
     return (
@@ -150,12 +175,17 @@ export default function HomePage() {
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="e.g., 'Quick chicken dinner' or 'vegetarian pasta'"
                 className="text-base"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleManualSearch();
+                  }
+                }}
               />
             </TabsContent>
           </Tabs>
           
           <Button 
-            onClick={handleFindRecipes} 
+            onClick={handleManualSearch} 
             disabled={isSearchDisabled}
             size="lg" 
             className="w-full text-base py-3 shadow-md hover:shadow-lg transition-shadow"
@@ -193,7 +223,7 @@ export default function HomePage() {
           <Separator />
           <div className="flex justify-between items-center">
             <h2 id="recipe-results-title" className="text-2xl font-bold text-primary">Recipe Suggestions</h2>
-            <Button variant="outline" onClick={clearRecommendedRecipes}>Clear Results</Button>
+            <Button variant="outline" onClick={() => { clearRecommendedRecipes(); router.replace('/'); }}>Clear Results</Button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {recommendedRecipes.map((recipe, index) => (
@@ -204,4 +234,16 @@ export default function HomePage() {
       )}
     </div>
   );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={
+        <div className="flex justify-center items-center min-h-[calc(100vh-10rem)]">
+            <Loader2 className="h-16 w-16 animate-spin text-primary" />
+        </div>
+    }>
+        <HomePageContent />
+    </Suspense>
+  )
 }
