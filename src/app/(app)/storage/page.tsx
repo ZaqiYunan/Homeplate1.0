@@ -37,6 +37,7 @@ const locationColors: Record<StorageLocation, string> = {
 };
 
 const ingredientCategories: IngredientCategory[] = ['protein', 'vegetable', 'fruit', 'dairy', 'grain', 'spice', 'other'];
+const storageLocations: StorageLocation[] = ['pantry', 'refrigerator', 'freezer'];
 
 const getExpiryBadgeVariant = (expiryDate?: string): { variant: "default" | "secondary" | "destructive" | "outline", text: string } => {
   if (!expiryDate) return { variant: "secondary", text: "N/A" };
@@ -51,13 +52,15 @@ export default function StoragePage() {
   const { storedIngredients, removeStoredIngredient, isContextLoading, isMounted } = useAppContext();
   const router = useRouter();
   const [categoryFilter, setCategoryFilter] = useState<IngredientCategory | null>(null);
+  const [locationFilter, setLocationFilter] = useState<StorageLocation | null>(null);
 
   const filteredIngredients = useMemo(() => {
-    if (!categoryFilter) {
-      return storedIngredients;
-    }
-    return storedIngredients.filter(item => item.category === categoryFilter);
-  }, [storedIngredients, categoryFilter]);
+    return storedIngredients.filter(item => {
+      const categoryMatch = !categoryFilter || item.category === categoryFilter;
+      const locationMatch = !locationFilter || item.location === locationFilter;
+      return categoryMatch && locationMatch;
+    });
+  }, [storedIngredients, categoryFilter, locationFilter]);
 
   if (!isMounted) {
     return (
@@ -78,6 +81,32 @@ export default function StoragePage() {
     const daysLeft = differenceInDays(parseISO(item.expiryDate), new Date());
     return daysLeft <= 3 && daysLeft >= 0;
   }).length;
+
+  const getEmptyStateText = () => {
+    if (!categoryFilter && !locationFilter) {
+        return {
+            title: "Your storage is empty!",
+            description: `Click "Add Item" to start managing your food inventory.`,
+            buttonText: "Add Your First Item"
+        };
+    }
+
+    let title = "No items match your filters.";
+    if (categoryFilter && locationFilter) {
+        title = `No "${categoryFilter}" found in the ${locationFilter}.`;
+    } else if (categoryFilter) {
+        title = `No items in the "${categoryFilter}" category.`;
+    } else if (locationFilter) {
+        title = `No items in the ${locationFilter}.`;
+    }
+    
+    return {
+        title,
+        description: "Try adjusting your filters or add a new item.",
+        buttonText: "Add New Item"
+    };
+  };
+  const emptyState = getEmptyStateText();
   
   return (
     <div className="space-y-6">
@@ -87,10 +116,13 @@ export default function StoragePage() {
           <p className="text-muted-foreground mt-1">An overview of all your food items, their locations, and expiry dates.</p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
-          <Button onClick={() => router.push('/dashboard')} variant="outline" className="w-1/2 sm:w-auto">
+          <Button onClick={() => router.push('/')} variant="outline" className="flex-1 sm:flex-initial sm:w-auto">
+            <ChefHat className="mr-2 h-4 w-4"/> Recipe Finder
+          </Button>
+          <Button onClick={() => router.push('/dashboard')} variant="outline" className="flex-1 sm:flex-initial sm:w-auto">
             <BarChart className="mr-2 h-4 w-4"/> Dashboard
           </Button>
-          <Button onClick={() => router.push('/storage/add')} className="w-1/2 sm:w-auto">
+          <Button onClick={() => router.push('/storage/add')} className="flex-1 sm:flex-initial sm:w-auto">
             <PlusCircle className="mr-2 h-4 w-4" /> Add Item
           </Button>
         </div>
@@ -106,18 +138,19 @@ export default function StoragePage() {
         </Alert>
       )}
 
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-          <Filter className="h-4 w-4" />
-          <span>Filter by Category:</span>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <div className="grid md:grid-cols-2 gap-x-8 gap-y-4">
+        <div>
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-2">
+            <Filter className="h-4 w-4" />
+            <span>Filter by Category:</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
             <Button
               variant={!categoryFilter ? 'default' : 'outline'}
               onClick={() => setCategoryFilter(null)}
               size="sm"
             >
-              All Items
+              All
             </Button>
             {ingredientCategories.map(cat => (
               <Button
@@ -130,6 +163,33 @@ export default function StoragePage() {
                 {cat}
               </Button>
             ))}
+          </div>
+        </div>
+        <div>
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-2">
+            <Filter className="h-4 w-4" />
+            <span>Filter by Location:</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={!locationFilter ? 'default' : 'outline'}
+              onClick={() => setLocationFilter(null)}
+              size="sm"
+            >
+              All
+            </Button>
+            {storageLocations.map(loc => (
+              <Button
+                key={loc}
+                variant={locationFilter === loc ? 'default' : 'outline'}
+                onClick={() => setLocationFilter(loc)}
+                size="sm"
+                className="capitalize"
+              >
+                {loc}
+              </Button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -144,14 +204,14 @@ export default function StoragePage() {
             <div className="text-center py-10">
                 <ChefHat size={48} className="mx-auto text-muted-foreground" />
                 <h3 className="mt-4 text-lg font-medium text-foreground">
-                  {categoryFilter ? `No items in ${categoryFilter}` : "Your storage is empty!"}
+                  {emptyState.title}
                 </h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {categoryFilter ? `Try selecting another category or add a new item.` : `Click "Add Item" to start managing your food inventory.`}
+                  {emptyState.description}
                 </p>
                 <Button onClick={() => router.push('/storage/add')} className="mt-6">
                     <PlusCircle className="mr-2 h-4 w-4"/>
-                    {categoryFilter ? "Add New Item" : "Add Your First Item"}
+                    {emptyState.buttonText}
                 </Button>
             </div>
           ) : (
@@ -218,3 +278,5 @@ export default function StoragePage() {
     </div>
   );
 }
+
+    
